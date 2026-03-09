@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animais Disponíveis • Canil Vilhena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <header class="topo">
+    <div class="container topo-conteudo">
+      <a href="index.html" class="logo">Canil Vilhena</a>
+      <nav>
+        <a href="index.html">Início</a>
+        <a href="pets.html" class="ativo">Adotar</a>
+        <a href="projeto.html">O Projeto</a>
+        <a href="blog.html">Blog</a>
+        <a href="contato.html">Contato</a>
+      </nav>
+      <a href="sistema.html" class="btn btn-funcionarios">Acesso Funcionários</a>
+    </div>
+  </header>
+
+  <main style="padding: 4rem 0;">
+    <div class="container">
+      <div class="secao-topo" style="max-width: 800px; text-align: left; margin-inline: 0; margin-bottom: 2.5rem;">
+        <span class="selo" style="transform: rotate(1deg);">Eles estão te esperando!</span>
+        <h1 style="font-size: 3.5rem;">Conheça os pets</h1>
+        <p class="texto-suave" style="font-size: 1.25rem;">Estes anjinhos estão vacinados, vermifugados e cheios de amor para dar. Use os filtros abaixo para encontrar seu match perfeito.</p>
+      </div>
+
+      <div class="filtros">
+        <select id="filtro-especie" style="flex: 1; min-width: 150px;">
+          <option value="todos">Todas as Espécies</option>
+          <option value="cão">Cachorros</option>
+          <option value="gato">Gatos</option>
+        </select>
+        <select id="filtro-porte" style="flex: 1; min-width: 150px;">
+          <option value="todos">Todos os Portes</option>
+          <option value="Pequeno">Pequeno</option>
+          <option value="Médio">Médio</option>
+          <option value="Grande">Grande</option>
+        </select>
+        <select id="filtro-sexo" style="flex: 1; min-width: 150px;">
+          <option value="todos">Todos os Sexos</option>
+          <option value="fêmea">Fêmea</option>
+          <option value="macho">Macho</option>
+        </select>
+        <button id="btn-filtrar" class="btn btn-principal" type="button">Buscar Match ✨</button>
+      </div>
+
+      <div id="lista-animais" class="pet-feed">
+        <!-- Renderizado via JS -->
+      </div>
+      <div id="pets-paginacao" class="lista-paginacao"></div>
+    </div>
+  </main>
+
+  <footer class="rodape">
+    <!-- O mesmo rodapé, copiado do index / simplificado -->
+    <div class="container rodape-conteudo" style="justify-content: center; text-align: center;">
+      <div>
+        <strong>Canil Prefeitura de Vilhena</strong>
+        <p style="color: var(--text-soft); font-weight: 600;">Trabalhando todos os dias para dar uma vida digna aos animais abandonados da nossa cidade.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
+
+
+
+

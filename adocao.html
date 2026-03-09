@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulário de Adoção • Canil Vilhena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topo">
+    <div class="container topo-conteudo">
+      <a href="index.html" class="logo">Canil Vilhena</a>
+      <nav>
+        <a href="index.html">Início</a>
+        <a href="pets.html" class="ativo">Adotar</a>
+        <a href="projeto.html">O Projeto</a>
+        <a href="blog.html">Blog</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="pagina-adocao">
+    <div class="container container-adocao">
+      
+      <div class="secao-topo texto-centro">
+        <span class="selo">Falta pouco!</span>
+        <h1 class="titulo-adocao">Formulário de Adoção</h1>
+        <p class="texto-suave">Preencha com carinho. Queremos conhecer a futura família do nosso peludo.</p>
+      </div>
+
+      <div class="painel painel-adocao">
+        <div id="resumo-adocao"></div>
+
+        <form id="form-adocao" class="formulario form-coluna">
+          <label class="secao-label">Sobre você</label>
+          <input type="text" id="adocao-nome" placeholder="Seu nome completo" required>
+          <input type="tel" id="adocao-whatsapp" placeholder="Celular / WhatsApp" required>
+          <input type="email" id="adocao-email" placeholder="E-mail" required>
+          <input type="text" id="adocao-cidade" placeholder="Cidade / Bairro" required>
+
+          <label class="secao-label mt-md">Sua mensagem</label>
+          <textarea id="adocao-mensagem" rows="5" placeholder="Conte um pouco da sua rotina, espaço da casa e por que deseja adotar este pet." required></textarea>
+
+          <button type="submit" class="btn btn-principal btn-adocao-enviar">Enviar Pedido de Adoção</button>
+          <div id="status-adocao" aria-live="polite"></div>
+        </form>
+      </div>
+
+    </div>
+  </main>
+  
+  <script src="script.js"></script>
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,541 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Interno &middot; Canil Vilhena</title>
+  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="sistema-body">
+
+  <!-- TELA DE LOGIN -->
+  <section id="login-sistema" class="login-full">
+    <div class="login-card painel">
+      <div class="login-header">
+        <strong class="logo logo-sistema-login">Canil Vilhena</strong>
+        <h2 class="login-titulo">Acesso Interno</h2>
+        <p class="texto-suave">Área restrita a funcionários do Canil Municipal de Vilhena.</p>
+      </div>
+      <form id="form-login-sistema" class="form-coluna" autocomplete="off">
+        <input type="text" id="login-usuario" placeholder="Usuário" required autocomplete="off">
+        <input type="password" id="login-senha" placeholder="Senha" required autocomplete="off">
+        <label class="check-label check-label-suave">
+          <input type="checkbox" id="login-lembrar"> Lembrar usuário e senha neste dispositivo
+        </label>
+        <button type="submit" class="btn btn-principal btn-mt-sm">Entrar no Sistema</button>
+        <div id="status-login" aria-live="polite"></div>
+      </form>
+      <a href="index.html" class="link-suave link-centro mt-lg">Voltar para o site público</a>
+    </div>
+  </section>
+
+  <!-- ÁREA AUTENTICADA -->
+  <div id="area-sistema" hidden>
+
+    <!-- Topbar -->
+    <header class="sistema-topbar">
+      <div class="sistema-topbar-esquerda">
+        <button id="btn-toggle-menu-sistema" class="menu-sistema-toggle" type="button" aria-label="Recolher menu lateral" aria-expanded="true" title="Recolher menu">
+          <svg class="menu-sistema-icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <g class="icone-hamburguer">
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </g>
+            <g class="icone-retrair">
+              <path d="M14 7l-5 5 5 5" />
+            </g>
+          </svg>
+        </button>
+        <a href="index.html" class="logo logo-sistema-topo">Canil Vilhena</a>
+      </div>
+      <div class="sistema-topbar-acoes">
+        <span id="usuario-logado" class="usuario-logado"></span>
+        <a href="index.html" class="btn btn-secundario btn-sm">Ver Site</a>
+        <button id="btn-logout" class="btn btn-danger btn-sm">Sair</button>
+      </div>
+    </header>
+
+    <div class="container sistema-container-wide">
+      <div class="sistema-shell">
+
+        <!-- Sidebar -->
+        <aside id="sistema-menu" class="sistema-menu painel">
+          <button class="tab-btn ativo" data-target="tab-dashboard">Dashboard</button>
+          <button class="tab-btn" data-target="tab-animais">Gestão de Pets</button>
+          <button class="tab-btn" data-target="tab-interesses">Pedidos de Adoção</button>
+          <button class="tab-btn" data-target="tab-denuncias">Denúncias</button>
+          <button class="tab-btn" data-target="tab-historias">Histórias de Adoção</button>
+          <button class="tab-btn" data-target="tab-blog">Blog e Notícias</button>
+          <button class="tab-btn" data-target="tab-usuarios">Usuários</button>
+          <button class="tab-btn" data-target="tab-config">Configurações</button>
+        </aside>
+
+        <!-- Conteúdo principal -->
+        <main class="sistema-main">
+
+          <!-- TAB: Dashboard -->
+          <div id="tab-dashboard" class="sistema-tab ativo">
+            <h2 class="titulo-tab">Visao Geral do Sistema</h2>
+            <div class="dashboard-grid">
+              <article>
+                <p>Pets Catalogados</p>
+                <strong id="dash-total-pets">0</strong>
+              </article>
+              <article class="dashboard-card-primary">
+                <p>Disponíveis</p>
+                <strong id="dash-disponiveis">0</strong>
+              </article>
+              <article class="dashboard-card-secondary">
+                <p>Adoções Realizadas</p>
+                <strong id="dash-adotados">0</strong>
+              </article>
+              <article class="dashboard-card-violet">
+                <p>Pedidos Pendentes</p>
+                <strong id="dash-pedidos">0</strong>
+              </article>
+            </div>
+            <div class="painel painel-grafico">
+              <h3 class="grafico-titulo">Evolução Mensal de Resgates e Adoções</h3>
+              <canvas id="grafico-dashboard" height="80"></canvas>
+            </div>
+          </div>
+
+          <!-- TAB: Animais -->
+          <div id="tab-animais" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Gestão de Pets</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-cadastrados" class="badge-contador"></span>
+                <button id="btn-Novo-pet" class="btn btn-principal">+ Adicionar Novo Pet</button>
+              </div>
+            </div>
+
+            <div id="status-sistema" aria-live="polite"></div>
+
+            <!-- Filtros -->
+            <div class="filtros painel filtros-admin">
+              <input type="text" id="filtro-admin-busca" placeholder="Buscar por nome do pet...">
+              <select id="filtro-admin-status">
+                <option value="todos">Todos os Status</option>
+                <option value="disponivel">Disponível</option>
+                <option value="em tratamento">Em Tratamento</option>
+                <option value="adotado">Adotado</option>
+              </select>
+            </div>
+
+            <!-- Lista de animais ---renderizado via JS -->
+            <div id="lista-animais-sistema"></div>
+
+            <!-- Formulario de cadastro/edicao de pet -->
+            <div id="modal-pet" class="modal-suspenso" hidden>
+              <div id="form-pet-container" class="painel form-secao card-suspenso">
+                <div class="card-suspenso-topo">
+                  <h3 id="titulo-form" class="titulo-form-secao">Cadastrar Novo Pet</h3>
+                  <button type="button" class="modal-fechar" data-fechar-modal="modal-pet" aria-label="Fechar cadastro de pet">&times;</button>
+                </div>
+
+                <form id="form-animal" class="form-grid">
+                <input type="hidden" id="animal-id">
+
+                <div class="campo-full">
+                  <label class="campo-label">Nome do Animal *</label>
+                  <input type="text" id="nome-animal" placeholder="Ex: Rex, Mimi, Thor..." required>
+                </div>
+
+                <!-- Secao de Fotos -->
+                <div class="campo-full secao-foto">
+                  <h4 class="secao-foto-titulo">Fotos do Pet</h4>
+                  <p class="texto-suave texto-foto-ajuda">Adicione fotos somente do computador. A primeira foto, ou a marcada como "perfil", será o avatar do animal.</p>
+                  <div class="foto-add-row">
+                    <input type="file" id="foto-arquivo" accept="image/*" multiple>
+                    <button type="button" id="btn-adicionar-foto-arquivo" class="btn btn-secundario">Adicionar do Computador</button>
+                  </div>
+                  <div id="status-foto" aria-live="polite"></div>
+
+                  <!-- Galeria com miniaturas (renderizada via JS) -->
+                  <div id="galeria-edicao" class="galeria-edicao-wrap"></div>
+
+                  <!-- Preview + Ajustes -->
+                  <!-- Entradas ocultas de posicao, atualizadas pelo arraste -->
+                  <input type="hidden" id="perfil-pos-x" value="50">
+                  <input type="hidden" id="perfil-pos-y" value="50">
+
+                  <div class="preview-ajustes">
+                    <div class="texto-centro">
+                      <p class="campo-label campo-label-mb">Foto de Perfil</p>
+                      <p class="texto-suave texto-preview-ajuda">Arraste para reposicionar &bull; Scroll ou dois dedos para zoom</p>
+                      <div class="preview-perfil-wrap">
+                        <img id="preview-perfil" src="" alt="Pré-visualização da foto de perfil">
+                        <div class="preview-perfil-hint">Arraste<br>para mover</div>
+                      </div>
+                    </div>
+                    <div class="ajustes-grid">
+                      <h4 class="campo-label ajustes-titulo">Ajustes da Imagem</h4>
+                      <div>
+                        <label class="campo-label">Zoom</label>
+                        <input type="range" id="perfil-zoom" min="0.5" max="3" step="0.05" value="1" class="w-full">
+                      </div>
+                      <div>
+                        <label class="campo-label">Brilho</label>
+                        <input type="range" id="perfil-brilho" min="50" max="150" value="100" class="w-full">
+                      </div>
+                      <div>
+                        <label class="campo-label">Contraste</label>
+                        <input type="range" id="perfil-contraste" min="50" max="150" value="100" class="w-full">
+                      </div>
+                      <div>
+                        <label class="campo-label">Saturação</label>
+                        <input type="range" id="perfil-saturacao" min="0" max="200" value="100" class="w-full">
+                      </div>
+                      <div class="campo-full mt-sm">
+                        <label class="campo-label campo-label-mb">Presets de Filtro</label>
+                        <div id="preset-filtros" class="preset-filtros-row">
+                          <button type="button" class="mini-btn" data-filtro="natural">Natural</button>
+                          <button type="button" class="mini-btn" data-filtro="vivo">Vivo</button>
+                          <button type="button" class="mini-btn" data-filtro="quente">Quente</button>
+                          <button type="button" class="mini-btn" data-filtro="pb">P&amp;B</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Espécie / Sexo -->
+                <div>
+                  <label class="campo-label">Espécie *</label>
+                  <select id="especie-animal" required>
+                    <option value="Cachorro">Cachorro</option>
+                    <option value="Gato">Gato</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="campo-label">Sexo *</label>
+                  <select id="sexo-animal" required>
+                    <option value="Macho">Macho</option>
+                    <option value="Fêmea">Fêmea</option>
+                  </select>
+                </div>
+
+                <!-- Idade / Porte -->
+                <div>
+                  <label class="campo-label">Idade (anos) *</label>
+                  <input type="number" id="idade-animal" step="0.1" min="0" placeholder="Ex: 1.5" required>
+                </div>
+                <div>
+                  <label class="campo-label">Porte *</label>
+                  <select id="porte-animal" required>
+                    <option value="Pequeno">Pequeno</option>
+                    <option value="Médio">Médio</option>
+                    <option value="Grande">Grande</option>
+                  </select>
+                </div>
+
+                <!-- Status / Temperamento -->
+                <div>
+                  <label class="campo-label">Status *</label>
+                  <select id="status-animal" required>
+                    <option value="disponível">Disponível</option>
+                    <option value="em tratamento">Em Tratamento</option>
+                    <option value="adotado">Adotado</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="campo-label">Temperamento *</label>
+                  <input type="text" id="temperamento-animal" placeholder="Ex: Calmo, brincalhão, tímido..." required>
+                </div>
+
+                <!-- Energia / Bairro -->
+                <div>
+                  <label class="campo-label">Nível de energia</label>
+                  <input type="text" id="energia-animal" placeholder="Ex: Alta, Media, Baixa">
+                </div>
+                <div>
+                  <label class="campo-label">Bairro do Resgate</label>
+                  <input type="text" id="bairro-resgate" placeholder="Ex: Centro, Vila Nova...">
+                </div>
+
+                <!-- Adotante -->
+                <div>
+                  <label class="campo-label">Nome do Adotante</label>
+                  <input type="text" id="adotante" placeholder="Preencher se o animal já foi adotado">
+                </div>
+                <div>
+                  <label class="campo-label">Telefone do Adotante</label>
+                  <input type="text" id="telefone-adotante" placeholder="Ex: (69) 99999-9999">
+                </div>
+
+                <!-- Checkboxes -->
+                <div class="campo-checks">
+                  <label class="check-label"><input type="checkbox" id="vacinado"> Vacinado</label>
+                  <label class="check-label"><input type="checkbox" id="castrado"> Castrado(a)</label>
+                </div>
+
+                <!-- Observações internas -->
+                <div class="campo-full">
+                  <label class="campo-label">Observações internas <span class="texto-suave">(não aparecem no site público)</span></label>
+                  <textarea id="observacao-interna" rows="2" placeholder="Notas internas para a equipe do canil..."></textarea>
+                </div>
+
+                <!-- Biografia pública -->
+                <div class="campo-full">
+                  <label class="campo-label">Biografia pública *</label>
+                  <textarea id="descricao-animal" rows="4" placeholder="Conte a história deste animal para quem visitar o site..." required></textarea>
+                </div>
+
+                <!-- Botões de ação -->
+                <div class="campo-full form-acoes">
+                  <button type="submit" class="btn btn-principal">Salvar Pet</button>
+                  <button type="button" id="btn-cancelar" class="btn btn-secundario">Cancelar</button>
+                </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Pedidos de Adoção -->
+          <div id="tab-interesses" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Pedidos de adoção</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-interesses" class="badge-contador"></span>
+              </div>
+            </div>
+            <p class="texto-suave texto-intro">Solicitações de adoção recebidas pelo site.</p>
+            <div id="status-interesses-admin" aria-live="polite"></div>
+            <div class="filtros painel filtros-admin filtros-fluxo">
+              <input type="text" id="filtro-interesse-busca" placeholder="Buscar por nome, pet, cidade ou contato...">
+              <select id="filtro-interesse-status">
+                <option value="todos">Todas as etapas</option>
+                <option value="novo">Novo</option>
+                <option value="em triagem">Em triagem</option>
+                <option value="contato realizado">Contato realizado</option>
+                <option value="visita agendada">Visita agendada</option>
+                <option value="concluido">Concluído</option>
+                <option value="arquivado">Arquivado</option>
+              </select>
+              <select id="filtro-interesse-prioridade">
+                <option value="todas">Todas as prioridades</option>
+                <option value="alta">Alta</option>
+                <option value="media">Média</option>
+                <option value="baixa">Baixa</option>
+              </select>
+            </div>
+            <div id="resumo-interesses" class="resumo-fluxo"></div>
+            <div id="lista-interesses-sistema" class="lista-gap"></div>
+          </div>
+
+          <!-- TAB: Denúncias -->
+          <div id="tab-denuncias" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Central de denúncias</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-denuncias" class="badge-contador"></span>
+              </div>
+            </div>
+            <p class="texto-suave texto-intro">Registros de maus-tratos e abandono enviados por cidadãos.</p>
+            <div id="status-denuncias-admin" aria-live="polite"></div>
+            <div class="filtros painel filtros-admin filtros-fluxo">
+              <input type="text" id="filtro-denuncia-busca" placeholder="Buscar por local, descrição ou contato...">
+              <select id="filtro-denuncia-status">
+                <option value="todos">Todas as etapas</option>
+                <option value="nova">Nova</option>
+                <option value="em analise">Em análise</option>
+                <option value="equipe acionada">Equipe acionada</option>
+                <option value="resolvida">Resolvida</option>
+                <option value="arquivada">Arquivada</option>
+              </select>
+              <select id="filtro-denuncia-prioridade">
+                <option value="todas">Todas as prioridades</option>
+                <option value="alta">Alta</option>
+                <option value="media">Média</option>
+                <option value="baixa">Baixa</option>
+              </select>
+            </div>
+            <div id="resumo-denuncias" class="resumo-fluxo"></div>
+            <div id="lista-denuncias-sistema" class="lista-gap"></div>
+          </div>
+
+          <!-- TAB: Histórias de Adoção -->
+          <div id="tab-historias" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Histórias de adoção</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-historias" class="badge-contador"></span>
+              </div>
+            </div>
+            <p class="texto-suave texto-intro">Escreva depoimentos reais das famílias para aparecerem na seção pública de histórias.</p>
+            <div id="status-historias-admin" aria-live="polite"></div>
+            <div class="historias-abas" role="tablist" aria-label="Filtro de publicação de histórias">
+              <button type="button" class="historias-aba-btn ativo" data-historias-aba="nao-postados" role="tab" aria-selected="true">Não postados</button>
+              <button type="button" class="historias-aba-btn" data-historias-aba="postados" role="tab" aria-selected="false">Postados</button>
+            </div>
+            <div class="filtros painel filtros-admin">
+              <input type="text" id="filtro-historia-busca" placeholder="Buscar por nome do pet, adotante ou texto da história...">
+            </div>
+            <div id="lista-historias-adocao" class="lista-gap"></div>
+          </div>
+
+          <!-- TAB: Blog -->
+          <div id="tab-blog" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Blog e notícias</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-posts" class="badge-contador"></span>
+                <button id="btn-novo-post" class="btn btn-principal">+ Novo Post</button>
+              </div>
+            </div>
+
+            <div id="status-blog" aria-live="polite"></div>
+
+            <!-- Lista de posts (renderizada via JS) -->
+            <div id="lista-blog-sistema" class="lista-gap"></div>
+
+            <!-- Formulário de criação/edição de post -->
+            <div id="modal-blog" class="modal-suspenso" hidden>
+              <div class="painel form-secao card-suspenso">
+                <div class="card-suspenso-topo">
+                  <h3 id="titulo-form-blog" class="titulo-form-secao">Criar Novo Post</h3>
+                  <button type="button" class="modal-fechar" data-fechar-modal="modal-blog" aria-label="Fechar cadastro de post">&times;</button>
+                </div>
+                <form id="form-blog" class="form-grid">
+                <input type="hidden" id="blog-id">
+
+                <div class="campo-full">
+                  <label class="campo-label">Título do post *</label>
+                  <input type="text" id="blog-titulo" placeholder="Título da publicação" required>
+                </div>
+
+                <div>
+                  <label class="campo-label">Categoria *</label>
+                  <select id="blog-categoria" required>
+                    <option value="">Selecione...</option>
+                    <option value="Noticia">Notícia</option>
+                    <option value="Evento">Evento</option>
+                    <option value="Saude Pet">Saúde Pet</option>
+                    <option value="Adocao">Adoção</option>
+                    <option value="Educacao">Educação</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="campo-label">Autor</label>
+                  <input type="text" id="blog-autor" placeholder="Nome do autor da publicação">
+                </div>
+
+                <div class="campo-full">
+                  <label class="campo-label">Imagem de Capa</label>
+                  <div class="upload-capa-row">
+                    <input type="file" id="blog-capa-arquivo" class="input-arquivo-oculto" accept="image/*">
+                    <label for="blog-capa-arquivo" class="btn-arquivo-icone" aria-label="Selecionar imagem de capa" title="Selecionar imagem de capa">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M20 17V7a2 2 0 0 0-2-2h-4.6a2 2 0 0 1-1.4-.58l-.8-.84A2 2 0 0 0 9.8 3H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2z" />
+                        <circle cx="9" cy="10" r="1.4" />
+                        <path d="m7 16 3.2-3.4a1.2 1.2 0 0 1 1.74 0L15 16" />
+                      </svg>
+                    </label>
+                    <span id="blog-capa-nome" class="upload-capa-nome">Nenhum arquivo selecionado</span>
+                  </div>
+                </div>
+
+                <div class="campo-full">
+                  <label class="campo-label">Resumo *</label>
+                  <textarea id="blog-resumo" rows="3" placeholder="Breve descrição que aparece na listagem do blog..." required></textarea>
+                </div>
+
+                <div class="campo-full">
+                  <label class="campo-label">Conteúdo completo *</label>
+                  <textarea id="blog-conteudo" rows="10" placeholder="Escreva o conteúdo completo do post aqui..." required></textarea>
+                </div>
+
+                <div class="campo-full campo-check-inline">
+                  <label class="check-label"><input type="checkbox" id="blog-publicado" checked> Publicar imediatamente no site</label>
+                </div>
+
+                <div class="campo-full form-acoes">
+                  <button type="submit" class="btn btn-principal">Salvar Post</button>
+                  <button type="button" id="btn-cancelar-blog" class="btn btn-secundario">Cancelar</button>
+                </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Usuários -->
+          <div id="tab-usuarios" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Gerenciar usuários</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-usuarios" class="badge-contador"></span>
+                <button id="btn-novo-usuario" class="btn btn-principal">+ Novo usuário</button>
+              </div>
+            </div>
+
+            <div id="status-usuario" aria-live="polite"></div>
+
+            <!-- Lista de usuários (renderizada via JS) -->
+            <div id="lista-usuarios" class="lista-gap"></div>
+
+            <!-- Formulário de novo usuário -->
+            <div id="modal-usuario" class="modal-suspenso" hidden>
+              <div class="painel form-secao card-suspenso">
+                <div class="card-suspenso-topo">
+                  <h3 class="titulo-form-secao">Cadastrar novo usuário</h3>
+                  <button type="button" class="modal-fechar" data-fechar-modal="modal-usuario" aria-label="Fechar cadastro de usuário">&times;</button>
+                </div>
+                <form id="form-usuario" class="form-grid">
+                <div>
+                  <label class="campo-label">Nome completo *</label>
+                  <input type="text" id="usuario-nome" placeholder="Nome do funcionário" required>
+                </div>
+                <div>
+                  <label class="campo-label">Login de Acesso *</label>
+                  <input type="text" id="usuario-login" placeholder="Ex: joao.silva" required autocomplete="off">
+                </div>
+                <div>
+                  <label class="campo-label">Perfil de Acesso *</label>
+                  <select id="usuario-perfil" required>
+                    <option value="">Selecione o perfil...</option>
+                    <option value="admin">Administrador</option>
+                    <option value="veterinario">Veterinario(a)</option>
+                    <option value="cuidador">Cuidador(a)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="campo-label">Senha *</label>
+                  <input type="password" id="usuario-senha" placeholder="Mínimo 6 caracteres" required autocomplete="new-password">
+                </div>
+                <div>
+                  <label class="campo-label">Confirmar Senha *</label>
+                  <input type="password" id="usuario-senha-confirmar" placeholder="Repita a senha escolhida" required autocomplete="new-password">
+                </div>
+                <div class="campo-full form-acoes">
+                  <button type="submit" class="btn btn-principal">Cadastrar usuário</button>
+                  <button type="button" id="btn-cancelar-usuario" class="btn btn-secundario">Cancelar</button>
+                </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Configurações -->
+          <div id="tab-config" class="sistema-tab">
+            <h2 class="titulo-tab">Configurações do sistema</h2>
+            <div class="painel perigo-box">
+              <h3 class="perigo-titulo">Zona de Perigo</h3>
+              <p class="texto-suave texto-intro">Restaurar o banco de dados irá <strong>apagar TODOS os dados atuais</strong> (animais, posts, usuários etc.) e recarregar apenas os registros iniciais padrão. Esta ação não pode ser desfeita.</p>
+              <button id="btn-rejeitar-dados" class="btn btn-danger">Restaurar Banco de Dados</button>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=9"></script>
+</body>
+</html>
+

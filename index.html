@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canil Vilhena • Adote um Amigo!</title>
+  <link rel="stylesheet" href="style.css?v=5">
+</head>
+<body>
+  
+  <!-- Header -->
+  <header class="topo">
+    <div class="container topo-conteudo">
+      <a href="index.html" class="logo">Canil Vilhena</a>
+      <nav>
+        <a href="index.html" class="ativo">Início</a>
+        <a href="pets.html">Adotar</a>
+        <a href="projeto.html">O Projeto</a>
+        <a href="blog.html">Blog</a>
+        <a href="contato.html">Contato</a>
+      </nav>
+      <a href="sistema.html" class="btn btn-funcionarios">Acesso Funcionários</a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero container">
+      <div class="hero-grid">
+        <span class="selo">#AdoteNãoCompre</span>
+        <h1>Encontre seu novo<br><span>melhor amigo!</span></h1>
+        <p class="subtitulo">Conheça nossos cães e gatos resgatados que estão em busca de uma segunda chance. Um ato de amor muda o mundo inteiro de um animal.</p>
+        <div class="acoes">
+          <a href="pets.html" class="btn btn-principal">Conhecer os pets</a>
+          <a href="projeto.html" class="btn btn-secundario">Como ajudar?</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Indicadores Flutuantes -->
+    <div class="container indicadores">
+      <article>
+        <strong id="contador-resgates">450+</strong>
+        <span>Pets Resgatados</span>
+      </article>
+      <article>
+        <strong id="contador-adoções">320+</strong>
+        <span>Adoções Felizes</span>
+      </article>
+      <article>
+        <strong id="contador-disponiveis">45</strong>
+        <span>Esperando um Lar</span>
+      </article>
+    </div>
+
+    <!-- Destaque: O Que é Ser Padrinho -->
+    <section class="secao">
+      <div class="container">
+        <div class="secao-topo">
+          <h2>Pet da Semana</h2>
+          <p class="texto-suave">Aquele que roubou o coração de todo mundo aqui no canil!</p>
+        </div>
+
+        <div class="carousel" aria-label="Pet da Semana" role="region">
+          <button id="carousel-prev" class="carousel-nav" type="button" aria-label="Pet anterior">‹</button>
+          <div id="carousel-track" class="carousel-track" aria-live="polite">
+            <!-- Renderizado dinamicamente pelo JS -->
+          </div>
+          <button id="carousel-next" class="carousel-nav" type="button" aria-label="Próximo pet">›</button>
+        </div>
+        <div id="home-carousel-dots" class="carousel-dots" aria-label="Indicadores do carrossel"></div>
+      </div>
+    </section>
+
+    <!-- Passos -->
+    <section class="secao secao-clara">
+      <div class="container">
+        <div class="secao-topo">
+          <span class="selo">Muito Fácil</span>
+          <h2>Como adotar?</h2>
+        </div>
+        
+        <div class="home-passos-grid">
+          <div class="passo-card painel">
+            <span class="badge">Passo 1</span>
+            <h3>Escolha</h3>
+            <p class="passo-texto">Veja nossa galeria de pets e encontre o amigo perfeito para sua família.</p>
+          </div>
+          <div class="passo-card painel">
+            <span class="badge">Passo 2</span>
+            <h3>Preencha o formulário</h3>
+            <p class="passo-texto">Responda algumas perguntinhas rápidas sobre onde o pet vai morar.</p>
+          </div>
+          <div class="passo-card painel">
+            <span class="badge">Passo 3</span>
+            <h3>Muito Amor!</h3>
+            <p class="passo-texto">Após a aprovação, busque seu novo amigo e vivam felizes para sempre!</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Novidades / Blog -->
+    <section class="secao">
+      <div class="container">
+        <div class="secao-topo secao-topo-inline-home">
+          <div>
+            <h2>Notícias do Canil</h2>
+            <p class="texto-suave">Fique por dentro das nossas ações e eventos.</p>
+          </div>
+          <a href="blog.html" class="btn btn-secundario">Ver todas</a>
+        </div>
+
+        <div id="home-blog" class="home-extra-grid">
+          <!-- Post 1 -->
+          <article class="blog-item">
+            <img src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=600&q=80" alt="Evento" class="blog-capa">
+            <span class="tag tag-evento">Evento</span>
+            <div class="blog-item-corpo">
+              <h3>Feirinha de Adoção na Praça Central!</h3>
+              <p class="blog-item-texto">Neste domingo estaremos na praça com vários focinhos esperando por uma família. Não perca!</p>
+            </div>
+            <a href="blog-post.html" class="link-leia">Ler publicação?</a>
+          </article>
+
+          <!-- Post 2 -->
+          <article class="blog-item">
+            <img src="https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&w=600&q=80" alt="Saúde" class="blog-capa">
+            <span class="tag tag-saude">Saúde Pet</span>
+            <div class="blog-item-corpo">
+              <h3>A importância da castração</h3>
+              <p class="blog-item-texto">Entenda por que castrar o seu animalzinho é um ato de amor e cuidado com a saúde dele e da cidade.</p>
+            </div>
+            <a href="blog-post.html" class="link-leia">Ler publicação?</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="rodape">
+    <div class="container rodape-conteudo">
+      <div>
+        <strong>Canil Prefeitura de Vilhena</strong>
+        <p style="color: var(--text-soft); font-weight: 600; max-width: 300px;">Trabalhando todos os dias para dar uma vida digna aos animais abandonados da nossa cidade.</p>
+      </div>
+      <div>
+        <h3 style="font-size: 1.4rem; margin-bottom: 1rem;">Links Rápidos</h3>
+        <nav style="flex-direction: column; gap: 0.5rem; align-items: flex-start;">
+          <a href="pets.html">Galeria de Adoção</a>
+          <a href="projeto.html">Nosso objetivo</a>
+          <a href="contato.html">Fazer uma Denúncia</a>
+        </nav>
+      </div>
+      <div>
+        <h3 style="font-size: 1.4rem; margin-bottom: 1rem;">Contato</h3>
+        <p style="color: var(--text-soft); font-weight: 600; margin-bottom: 0.5rem;">📍 Av. Castelo Branco, 1234 - Vilhena/RO</p>
+        <p style="color: var(--text-soft); font-weight: 600; margin-bottom: 0.5rem;">📞 (69) 3322-1111</p>
+        <p style="color: var(--text-soft); font-weight: 600; margin-bottom: 0.5rem;">📧 canil@vilhena.ro.gov.br</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js?v=5"></script>
+</body>
+</html>
+

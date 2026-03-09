@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contato & Denúncias • Canil Vilhena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topo">
+    <div class="container topo-conteudo">
+      <a href="index.html" class="logo">Canil Vilhena</a>
+      <nav>
+        <a href="index.html">Início</a>
+        <a href="pets.html">Adotar</a>
+        <a href="projeto.html">O Projeto</a>
+        <a href="blog.html">Blog</a>
+        <a href="contato.html" class="ativo">Contato</a>
+      </nav>
+      <a href="sistema.html" class="btn btn-funcionarios">Acesso Funcionários</a>
+    </div>
+  </header>
+
+  <main style="padding: 4rem 0;">
+    <div class="container">
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 4rem; align-items: start;">
+        
+        <div>
+          <div class="secao-topo" style="text-align: left; margin-inline: 0; margin-bottom: 2rem;">
+            <span class="selo" style="background: #FFF0F4; color: #FF5280; border-color: #FF5280;">Fala com a gente</span>
+            <h1 style="font-size: 3rem;">Contato &<br>Denúncias</h1>
+            <p class="texto-suave" style="font-size: 1.15rem;">Viu um animal em apuros? Quer tirar uma dúvida sobre adoção? Mande sua mensagem ou visite o Canil pessoalmente.</p>
+          </div>
+
+          <div class="painel" style="margin-bottom: 2rem; border-color: var(--secondary);">
+            <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Onde Estamos</h3>
+            <p style="font-weight: 600; color: var(--text-soft); font-size: 1.1rem; margin-bottom: 0.5rem;">Av. Castelo Branco, 1234 - Vilhena/RO</p>
+            <p style="font-weight: 600; color: var(--text-soft); font-size: 1.1rem; margin-bottom: 0.5rem;">Atendimento: Seg a Sex, 08h às 17h</p>
+            <p style="font-weight: 800; color: var(--primary); font-size: 1.2rem; margin-top: 1rem;">(69) 3322-1111</p>
+          </div>
+        </div>
+
+        <div class="painel">
+          <h2 style="font-size: 2rem; margin-bottom: 1.5rem;">Enviar Denúncia</h2>
+          <form id="form-denuncia" class="form-denuncia" style="flex-direction: column;">
+            <input type="text" id="denuncia-assunto" placeholder="Assunto (ex: Cachorro abandonado na praça)" required>
+            <textarea id="denuncia-descricao" rows="4" placeholder="Descreva os detalhes da denúncia (local, situação, pontos de referência...)" required></textarea>
+            
+            <label style="font-weight: 700; color: var(--text-soft);">Sua identidade (opcional - garantimos sigilo)</label>
+            <input type="text" id="denuncia-nome" placeholder="Seu nome">
+            <input type="tel" id="denuncia-telefone" placeholder="Seu telefone">
+            
+            <button type="submit" class="btn btn-principal" style="margin-top: 1rem;">Registrar Denúncia</button>
+          </form>
+          <div id="status-denuncia" style="margin-top: 1rem; font-weight: 700; color: #1E7E34; display: none;">Denúncia registrada com sucesso. Nossa equipe vai avaliar o caso.</div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer class="rodape">
+    <div class="container rodape-conteudo" style="justify-content: center; text-align: center;">
+      <div>
+        <strong>Canil Prefeitura de Vilhena</strong>
+        <p style="color: var(--text-soft); font-weight: 600;">Trabalhando todos os dias para dar uma vida digna aos animais abandonados da nossa cidade.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
+
+
+
+
