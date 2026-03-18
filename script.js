@@ -4,6 +4,7 @@
   denuncias: 'pv_denuncias',
   interesses: 'pv_interesses_adocao',
   usuarios: 'pv_usuarios',
+  auditoria: 'pv_auditoria_logs',
   seedUpgradeV2: 'pv_seed_upgrade_v2',
   seedUpgradeV3: 'pv_seed_upgrade_v3',
   seedUpgradeV4: 'pv_seed_upgrade_v4',
@@ -29,6 +30,7 @@ let estado = {
   denuncias: [],
   interesses: [],
   usuarios: [],
+  auditoria: [],
 };
 
 let carouselIndex = 0;
@@ -39,9 +41,13 @@ let petDestinoId = null;
 let blogPaginaAtual = 1;
 let projetoPaginaAtual = 1;
 let petsPaginaAtual = 1;
+let auditoriaPaginaAtual = 1;
+let rankingPaginaAtual = 1;
 
 const CARDS_POR_PAGINA = 12;
 const PETS_CARDS_POR_PAGINA = 24;
+const AUDITORIA_LOGS_POR_PAGINA = 25;
+const RANKING_PETS_POR_PAGINA = 10;
 
 const depoimentosHome = [
   {
@@ -888,6 +894,11 @@ function configurarMenuMobile() {
 function configurarAnimacoesEntrada() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
+  const pagina = window.location.pathname.split('/').pop() || 'index.html';
+  if (pagina === 'pets.html' || pagina === 'blog.html' || pagina === 'sistema.html') {
+    return;
+  }
+
   const seletorAnimado = '.painel, .blog-item, .pet-post, .passo-card, .indicadores article, .secao-topo, .slider-12-card, .item-gestao';
   const animados = new WeakSet();
 
@@ -895,7 +906,18 @@ function configurarAnimacoesEntrada() {
     raiz.querySelectorAll?.(seletorAnimado).forEach((el) => {
       if (animados.has(el)) return;
       el.classList.add('reveal-on-scroll');
-      observer.observe(el);
+
+      // Evita cards invisíveis ao abrir a página: se já está no viewport, revela na hora.
+      const rect = el.getBoundingClientRect();
+      const viewportH = window.innerHeight || document.documentElement.clientHeight;
+      const jaVisivel = rect.top < viewportH * 0.92 && rect.bottom > 0;
+
+      if (jaVisivel) {
+        el.classList.add('in-view');
+      } else {
+        observer.observe(el);
+      }
+
       animados.add(el);
     });
   };
@@ -960,6 +982,9 @@ function bootstrapDados() {
   if (!localStorage.getItem(STORAGE_KEYS.usuarios)) {
     localStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(seeds.usuarios));
   }
+  if (!localStorage.getItem(STORAGE_KEYS.auditoria)) {
+    localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify([]));
+  }
 }
 
 function carregarEstado() {
@@ -968,6 +993,27 @@ function carregarEstado() {
   estado.denuncias = readJSON(STORAGE_KEYS.denuncias, []);
   estado.interesses = readJSON(STORAGE_KEYS.interesses, []);
   estado.usuarios = readJSON(STORAGE_KEYS.usuarios, []);
+  estado.auditoria = readJSON(STORAGE_KEYS.auditoria, []);
+  
+  // Normalizar espécies de pets existentes
+  normalizarEspeciePets();
+}
+
+function normalizarEspeciePets() {
+  let houveMudanca = false;
+  estado.animais.forEach((pet) => {
+    if (pet.especie) {
+      const especieAnterior = pet.especie;
+      pet.especie = normalizarEspecie(pet.especie);
+      if (especieAnterior !== pet.especie) {
+        houveMudanca = true;
+      }
+    }
+  });
+  
+  if (houveMudanca) {
+    localStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(estado.animais));
+  }
 }
 
 function garantirDadosBase() {
@@ -1082,6 +1128,7 @@ function salvarEstado() {
   localStorage.setItem(STORAGE_KEYS.denuncias, JSON.stringify(estado.denuncias));
   localStorage.setItem(STORAGE_KEYS.interesses, JSON.stringify(estado.interesses));
   localStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(estado.usuarios));
+  localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
 }
 
 function readJSON(chave, padrao) {
@@ -1109,6 +1156,20 @@ function formatarData(valor) {
   });
 }
 
+function formatarDataHora(valor) {
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) {
+    return 'Data não informada';
+  }
+  return data.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function slugStatus(status) {
   return String(status).toLowerCase().replace(/\s+/g, '-');
 }
@@ -1122,6 +1183,40 @@ function escaparHtml(valor) {
     .replace(/'/g, '&#39;');
 }
 
+function escaparCsv(valor) {
+  const texto = String(valor ?? '');
+  const seguro = texto.replace(/"/g, '""');
+  return `"${seguro}"`;
+}
+
+function registrarAuditoria({ acao = '', entidade = '', alvoId = '', detalhes = '', metadados = null } = {}) {
+  if (!acao || !entidade) return;
+
+  const usuario = readSessionUser() || obterUsuarioSessaoAtual() || null;
+  const registro = {
+    id: `audit-${crypto.randomUUID()}`,
+    acao: String(acao).trim().toLowerCase(),
+    entidade: String(entidade).trim().toLowerCase(),
+    alvoId: String(alvoId || '').trim(),
+    detalhes: String(detalhes || '').trim(),
+    usuarioId: String(usuario?.id || '').trim(),
+    usuarioNome: String(usuario?.nome || 'Site público').trim(),
+    usuarioLogin: String(usuario?.login || 'site-publico').trim(),
+    usuarioPerfil: String(usuario?.perfil || 'publico').trim().toLowerCase(),
+    criadoEm: new Date().toISOString(),
+    metadados: metadados && typeof metadados === 'object' ? metadados : null,
+  };
+
+  estado.auditoria = Array.isArray(estado.auditoria) ? estado.auditoria : [];
+  estado.auditoria.unshift(registro);
+  if (estado.auditoria.length > 1200) {
+    estado.auditoria = estado.auditoria.slice(0, 1200);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
+  renderListaAuditoriaSistema();
+}
+
 function normalizarStatus(status) {
   const base = String(status || '')
     .toLowerCase()
@@ -1133,6 +1228,18 @@ function normalizarStatus(status) {
   if (base === 'em tratamento') return 'em tratamento';
   if (base === 'adotado') return 'adotado';
   return String(status || '').toLowerCase().trim();
+}
+
+function normalizarEspecie(especie) {
+  const base = String(especie || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (base === 'cachorro' || base === 'cao') return 'cão';
+  if (base === 'gato') return 'gato';
+  return String(especie || '').toLowerCase().trim();
 }
 
 function normalizarEtapaFluxo(valor, tipo) {
@@ -2034,6 +2141,12 @@ function configurarContato() {
       criadoEm: new Date().toISOString(),
     });
 
+    registrarAuditoria({
+      acao: 'criar',
+      entidade: 'denuncia',
+      detalhes: `Denúncia registrada via site público: ${local}`,
+    });
+
     salvarEstado();
     form.reset();
     setStatus('status-denuncia', 'Denúncia enviada com sucesso. Obrigado por ajudar.', 'ok');
@@ -2104,6 +2217,12 @@ function configurarAdocao() {
     }
 
     estado.interesses.unshift(payload);
+    registrarAuditoria({
+      acao: 'criar',
+      entidade: 'interesse',
+      alvoId: payload.id,
+      detalhes: `Interesse de adoção enviado para ${pet.nome}.`,
+    });
     salvarEstado();
     form.reset();
     setStatus('status-adocao', 'Interesse enviado! A equipe retornará em breve.', 'ok');
@@ -2153,11 +2272,26 @@ function configurarLoginSistema() {
     }
 
     sessionStorage.setItem(SESSION_KEYS.usuario, JSON.stringify(usuario));
+    registrarAuditoria({
+      acao: 'login',
+      entidade: 'sistema',
+      alvoId: usuario.id,
+      detalhes: 'Login realizado no sistema interno.',
+    });
     setStatus('status-login', 'Acesso liberado.', 'ok');
     renderSistemaAutenticado();
   });
 
   btnLogout?.addEventListener('click', () => {
+    const usuarioSaindo = readSessionUser();
+    if (usuarioSaindo) {
+      registrarAuditoria({
+        acao: 'logout',
+        entidade: 'sistema',
+        alvoId: usuarioSaindo.id,
+        detalhes: 'Logout realizado no sistema interno.',
+      });
+    }
     sessionStorage.removeItem(SESSION_KEYS.usuario);
     sessionStorage.removeItem(SESSION_KEYS.abaSistema);
     mostrarAreaSistema(false);
@@ -2202,6 +2336,7 @@ function renderSistemaAutenticado() {
     ['PainelOp', configurarPainelOperacao],
     ['Blog', configurarBlogSistema],
     ['Usuarios', configurarUsuariosSistema],
+    ['Auditoria', configurarAuditoriaSistema],
     ['Dashboard', renderDashboardSistema],
     ['ListaPets', renderListaGestaoPets],
     ['HistoriasAdocao', configurarHistoriasAdocaoSistema],
@@ -2351,22 +2486,25 @@ function configurarTabsSistema() {
   const usuarioSessao = obterUsuarioSessaoAtual() || readSessionUser();
   const ehAdmin = usuarioEhAdmin(usuarioSessao);
 
-  const botaoConfig = botoes.find((b) => b.getAttribute('data-target') === 'tab-config');
-  const painelConfig = paineis.find((p) => p.id === 'tab-config');
+  const abasAdmin = ['tab-config', 'tab-auditoria'];
+  abasAdmin.forEach((abaId) => {
+    const botao = botoes.find((b) => b.getAttribute('data-target') === abaId);
+    const painel = paineis.find((p) => p.id === abaId);
 
-  if (botaoConfig) {
-    botaoConfig.hidden = !ehAdmin;
-    botaoConfig.style.display = ehAdmin ? '' : 'none';
-  }
+    if (botao) {
+      botao.hidden = !ehAdmin;
+      botao.style.display = ehAdmin ? '' : 'none';
+    }
 
-  if (painelConfig) {
-    painelConfig.hidden = !ehAdmin;
-    painelConfig.style.display = ehAdmin ? '' : 'none';
-  }
+    if (painel) {
+      painel.hidden = !ehAdmin;
+      painel.style.display = ehAdmin ? '' : 'none';
+    }
+  });
 
   const resolverAbaPermitida = (aba) => {
     if (!aba) return 'tab-dashboard';
-    if (aba === 'tab-config' && !ehAdmin) return 'tab-dashboard';
+    if (abasAdmin.includes(aba) && !ehAdmin) return 'tab-dashboard';
     return aba;
   };
 
@@ -2769,7 +2907,7 @@ function configurarFormularioPet() {
     const pet = {
       id,
       nome: inputValue('nome-animal'),
-      especie: inputValue('especie-animal'),
+      especie: normalizarEspecie(inputValue('especie-animal')),
       idade: Number(inputValue('idade-animal')),
       porte: inputValue('porte-animal'),
       sexo: inputValue('sexo-animal'),
@@ -2806,9 +2944,21 @@ function configurarFormularioPet() {
     const idx = estado.animais.findIndex((item) => item.id === id);
     if (idx >= 0) {
       estado.animais[idx] = pet;
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'pet',
+        alvoId: pet.id,
+        detalhes: `Pet ${pet.nome} atualizado (status: ${pet.status}).`,
+      });
       setStatus('status-sistema', 'Pet atualizado com sucesso.', 'ok');
     } else {
       estado.animais.unshift(pet);
+      registrarAuditoria({
+        acao: 'criar',
+        entidade: 'pet',
+        alvoId: pet.id,
+        detalhes: `Pet ${pet.nome} cadastrado (status: ${pet.status}).`,
+      });
       setStatus('status-sistema', 'Pet cadastrado com sucesso.', 'ok');
     }
 
@@ -2890,6 +3040,12 @@ function configurarFormularioPet() {
     if (!confirmou) return;
 
     estado.animais = estado.animais.filter((item) => item.id !== petId);
+    registrarAuditoria({
+      acao: 'excluir',
+      entidade: 'pet',
+      alvoId: pet.id,
+      detalhes: `Pet ${pet.nome} removido do sistema.`,
+    });
     salvarEstado();
     renderListaGestaoPets();
     renderDashboardSistema();
@@ -3050,55 +3206,445 @@ function renderListaGestaoPets() {
   });
 }
 
+function obterFiltrosDashboard() {
+  return {
+    periodo: inputValue('dash-filtro-periodo') || '90',
+    statusAnimal: normalizarStatus(inputValue('dash-filtro-status-animal') || 'todos'),
+    fluxo: inputValue('dash-filtro-fluxo') || 'todos',
+  };
+}
+
+function resetarPaginacaoDashboard() {
+  rankingPaginaAtual = 1;
+}
+
+function limitePeriodoDashboard(periodo) {
+  if (!periodo || periodo === 'todos') return null;
+  const dias = Number(periodo);
+  if (!Number.isFinite(dias) || dias <= 0) return null;
+  return Date.now() - (dias * 24 * 60 * 60 * 1000);
+}
+
+function dentroDoPeriodoDashboard(valorData, limiteTimestamp) {
+  if (!limiteTimestamp) return true;
+  const ts = timestampValido(valorData);
+  return ts != null && ts >= limiteTimestamp;
+}
+
+function mesesPorPeriodoDashboard(periodo) {
+  if (periodo === '30') return 4;
+  if (periodo === '90') return 6;
+  if (periodo === '180') return 8;
+  return 12;
+}
+
+function mesAnoChave(data) {
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  return `${data.getFullYear()}-${mes}`;
+}
+
+function rotuloMesAno(data) {
+  return data.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+}
+
+function gerarJanelaMensalDashboard(periodo) {
+  const totalMeses = mesesPorPeriodoDashboard(periodo);
+  const agora = new Date();
+  const base = new Date(agora.getFullYear(), agora.getMonth(), 1);
+
+  return Array.from({ length: totalMeses }, (_, idx) => {
+    const data = new Date(base.getFullYear(), base.getMonth() - (totalMeses - 1 - idx), 1);
+    return {
+      chave: mesAnoChave(data),
+      rotulo: rotuloMesAno(data),
+      inicio: data.getTime(),
+    };
+  });
+}
+
+function contarSerieMensalDashboard(lista, dataResolver, janelaMensal) {
+  const mapa = Object.fromEntries(janelaMensal.map((item) => [item.chave, 0]));
+
+  lista.forEach((item) => {
+    const bruto = dataResolver(item);
+    const data = new Date(bruto || 0);
+    if (Number.isNaN(data.getTime())) return;
+    const chave = mesAnoChave(data);
+    if (Object.prototype.hasOwnProperty.call(mapa, chave)) {
+      mapa[chave] += 1;
+    }
+  });
+
+  return janelaMensal.map((item) => mapa[item.chave]);
+}
+
+function etapaInteresseFinalizada(etapa) {
+  return etapa === 'concluido' || etapa === 'arquivado';
+}
+
+function etapaDenunciaFinalizada(etapa) {
+  return etapa === 'resolvida' || etapa === 'arquivada';
+}
+
+function aplicarFiltroFluxo(lista, tipo, filtroFluxo) {
+  if (filtroFluxo === 'todos') return lista;
+
+  return lista.filter((item) => {
+    const etapa = normalizarEtapaFluxo(item.statusAtendimento, tipo);
+    const finalizado = tipo === 'interesse' ? etapaInteresseFinalizada(etapa) : etapaDenunciaFinalizada(etapa);
+    return filtroFluxo === 'finalizados' ? finalizado : !finalizado;
+  });
+}
+
+function configurarEventosDashboard() {
+  if (window.__dashboardEventosConfigurados) return;
+  window.__dashboardEventosConfigurados = true;
+
+  ['dash-filtro-periodo', 'dash-filtro-status-animal', 'dash-filtro-fluxo'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      resetarPaginacaoDashboard();
+      renderDashboardSistema();
+    });
+  });
+
+  document.querySelectorAll('[data-print-dashboard-target]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-print-dashboard-target');
+      if (!target) return;
+      imprimirAreaDashboard(target);
+    });
+  });
+
+  const btnImprimirTudo = document.getElementById('btn-dash-imprimir-tudo');
+  if (btnImprimirTudo) {
+    btnImprimirTudo.addEventListener('click', () => {
+      imprimirAreaDashboard('tab-dashboard');
+    });
+  }
+}
+
+function imprimirAreaDashboard(targetId) {
+  const area = document.getElementById(targetId);
+  if (!area) return;
+
+  area.classList.add('print-area-ativa');
+  window.print();
+  window.setTimeout(() => {
+    area.classList.remove('print-area-ativa');
+  }, 250);
+}
+
+function renderGraficoDashboard(canvasId, configuracao) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !window.Chart) return;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  if (canvas._chartInstance) {
+    canvas._chartInstance.destroy();
+  }
+
+  canvas._chartInstance = new window.Chart(ctx, configuracao);
+}
+
+function montarRelatorioIndicadoresDashboard({
+  totalPets,
+  adotados,
+  totalInteresses,
+  interessesConcluidos,
+  totalDenuncias,
+  denunciasResolvidas,
+  mediaDiasAdocao,
+  protocolosAbertos,
+  postsPublicados,
+}) {
+  const alvo = document.getElementById('relatorio-indicadores');
+  if (!alvo) return;
+
+  const taxaAdocao = totalPets ? (adotados / totalPets) * 100 : 0;
+  const taxaConclusaoInteresses = totalInteresses ? (interessesConcluidos / totalInteresses) * 100 : 0;
+  const taxaResolucaoDenuncias = totalDenuncias ? (denunciasResolvidas / totalDenuncias) * 100 : 0;
+
+  const cards = [
+    ['Taxa de Adoção', `${taxaAdocao.toFixed(1)}%`],
+    ['Conclusão de Pedidos', `${taxaConclusaoInteresses.toFixed(1)}%`],
+    ['Resolução de Denúncias', `${taxaResolucaoDenuncias.toFixed(1)}%`],
+    ['Média de Dias até Adoção', `${mediaDiasAdocao.toFixed(1)} dias`],
+    ['Protocolos em Aberto', String(protocolosAbertos)],
+    ['Posts Publicados no Período', String(postsPublicados)],
+  ];
+
+  alvo.innerHTML = cards
+    .map(([rotulo, valor]) => `
+      <article class="relatorio-kpi">
+        <p class="rotulo">${escaparHtml(rotulo)}</p>
+        <p class="valor">${escaparHtml(valor)}</p>
+      </article>
+    `)
+    .join('');
+}
+
+function renderRelatorioRankingDashboard(listaPets) {
+  const tbody = document.getElementById('relatorio-ranking-pets');
+  if (!tbody) return;
+
+  const ranking = listaPets
+    .map((pet) => {
+      const cadastroTs = timestampValido(pet.criadoEm || pet.atualizadoEm);
+      const dias = cadastroTs == null ? 0 : Math.max(0, Math.floor((Date.now() - cadastroTs) / (24 * 60 * 60 * 1000)));
+      return { pet, dias };
+    })
+    .sort((a, b) => b.dias - a.dias);
+
+  if (!ranking.length) {
+    tbody.innerHTML = '<tr><td colspan="4">Nenhum pet encontrado para os filtros atuais.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = ranking
+    .map(({ pet, dias }) => `
+      <tr>
+        <td>${escaparHtml(pet.nome || 'Pet sem nome')}</td>
+        <td>${escaparHtml(normalizarStatus(pet.status) || '—')}</td>
+        <td>${escaparHtml(formatarData(pet.criadoEm || pet.atualizadoEm))}</td>
+        <td>${dias}</td>
+      </tr>
+    `)
+    .join('');
+}
+
 function renderDashboardSistema() {
-  const total = estado.animais.length;
-  const disponiveis = estado.animais.filter((p) => p.status === 'disponivel' || p.status === 'disponível').length;
-  const adotados = estado.animais.filter((p) => p.status === 'adotado').length;
-  const pedidos = estado.interesses.filter((item) => {
+  configurarEventosDashboard();
+
+  const filtros = obterFiltrosDashboard();
+  const limite = limitePeriodoDashboard(filtros.periodo);
+
+  const petsFiltrados = estado.animais.filter((pet) => {
+    if (filtros.statusAnimal !== 'todos' && normalizarStatus(pet.status) !== filtros.statusAnimal) {
+      return false;
+    }
+    return dentroDoPeriodoDashboard(pet.criadoEm || pet.atualizadoEm, limite);
+  });
+
+  const interessesBase = estado.interesses
+    .filter((item) => dentroDoPeriodoDashboard(item.criadoEm, limite));
+  const denunciasBase = estado.denuncias
+    .filter((item) => dentroDoPeriodoDashboard(item.criadoEm, limite));
+
+  const interessesFiltrados = aplicarFiltroFluxo(interessesBase, 'interesse', filtros.fluxo);
+  const denunciasFiltradas = aplicarFiltroFluxo(denunciasBase, 'denuncia', filtros.fluxo);
+
+  const total = petsFiltrados.length;
+  const disponiveis = petsFiltrados.filter((p) => normalizarStatus(p.status) === 'disponível').length;
+  const adotados = petsFiltrados.filter((p) => normalizarStatus(p.status) === 'adotado').length;
+  const pedidos = interessesFiltrados.filter((item) => {
     const etapa = normalizarEtapaFluxo(item.statusAtendimento, 'interesse');
-    return etapa !== 'concluido' && etapa !== 'arquivado';
+    return !etapaInteresseFinalizada(etapa);
   }).length;
+  const denunciasAbertas = denunciasFiltradas.filter((item) => {
+    const etapa = normalizarEtapaFluxo(item.statusAtendimento, 'denuncia');
+    return !etapaDenunciaFinalizada(etapa);
+  }).length;
+  const usuariosAtivos = estado.usuarios.filter((usuario) => usuario.ativo).length;
 
   setText('dash-total-pets', String(total));
   setText('dash-disponiveis', String(disponiveis));
   setText('dash-adotados', String(adotados));
   setText('dash-pedidos', String(pedidos));
+  setText('dash-denuncias-abertas', String(denunciasAbertas));
+  setText('dash-usuarios-ativos', String(usuariosAtivos));
+
+  const janelaMensal = gerarJanelaMensalDashboard(filtros.periodo);
+  const labelsMensais = janelaMensal.map((item) => item.rotulo);
+
+  const serieResgates = contarSerieMensalDashboard(
+    petsFiltrados,
+    (item) => item.criadoEm || item.atualizadoEm,
+    janelaMensal,
+  );
+  const serieAdocoes = contarSerieMensalDashboard(
+    petsFiltrados.filter((item) => normalizarStatus(item.status) === 'adotado'),
+    (item) => item.adocaoEm || item.atualizadoEm || item.criadoEm,
+    janelaMensal,
+  );
+
+  renderGraficoDashboard('grafico-dashboard', {
+    type: 'bar',
+    data: {
+      labels: labelsMensais,
+      datasets: [
+        {
+          label: 'Resgates',
+          data: serieResgates,
+          backgroundColor: 'rgba(82,178,207,0.72)',
+          borderRadius: 6,
+        },
+        {
+          label: 'Adoções',
+          data: serieAdocoes,
+          backgroundColor: 'rgba(255,112,150,0.72)',
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+
+  const statusLabels = ['Disponível', 'Adotado', 'Em tratamento', 'Outros'];
+  const statusValores = [
+    petsFiltrados.filter((p) => normalizarStatus(p.status) === 'disponível').length,
+    petsFiltrados.filter((p) => normalizarStatus(p.status) === 'adotado').length,
+    petsFiltrados.filter((p) => normalizarStatus(p.status) === 'em tratamento').length,
+    petsFiltrados.filter((p) => {
+      const status = normalizarStatus(p.status);
+      return status !== 'disponível' && status !== 'adotado' && status !== 'em tratamento';
+    }).length,
+  ];
+
+  renderGraficoDashboard('grafico-status-pets', {
+    type: 'doughnut',
+    data: {
+      labels: statusLabels,
+      datasets: [{
+        data: statusValores,
+        backgroundColor: ['#52b2cf', '#ff7096', '#f0ad4e', '#8f9aa6'],
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
+
+  const fluxoLabels = ['Novo(a)', 'Em triagem', 'Contato/Acompanhamento', 'Finalizado', 'Arquivado'];
+  const interessesPorEtapa = [0, 0, 0, 0, 0];
+  const denunciasPorEtapa = [0, 0, 0, 0, 0];
+
+  interessesFiltrados.forEach((item) => {
+    const etapa = normalizarEtapaFluxo(item.statusAtendimento, 'interesse');
+    if (etapa === 'novo') interessesPorEtapa[0] += 1;
+    else if (etapa === 'em triagem') interessesPorEtapa[1] += 1;
+    else if (etapa === 'contato realizado' || etapa === 'visita agendada') interessesPorEtapa[2] += 1;
+    else if (etapa === 'concluido') interessesPorEtapa[3] += 1;
+    else if (etapa === 'arquivado') interessesPorEtapa[4] += 1;
+  });
+
+  denunciasFiltradas.forEach((item) => {
+    const etapa = normalizarEtapaFluxo(item.statusAtendimento, 'denuncia');
+    if (etapa === 'nova') denunciasPorEtapa[0] += 1;
+    else if (etapa === 'em triagem') denunciasPorEtapa[1] += 1;
+    else if (etapa === 'em acompanhamento') denunciasPorEtapa[2] += 1;
+    else if (etapa === 'resolvida') denunciasPorEtapa[3] += 1;
+    else if (etapa === 'arquivada') denunciasPorEtapa[4] += 1;
+  });
+
+  renderGraficoDashboard('grafico-fluxo', {
+    type: 'bar',
+    data: {
+      labels: fluxoLabels,
+      datasets: [
+        {
+          label: 'Interesses',
+          data: interessesPorEtapa,
+          backgroundColor: '#52b2cf',
+          borderRadius: 6,
+        },
+        {
+          label: 'Denúncias',
+          data: denunciasPorEtapa,
+          backgroundColor: '#6C4B9E',
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+
+  const contagemEspecie = {};
+  petsFiltrados.forEach((pet) => {
+    const especie = (String(pet.especie || 'Não informado').trim() || 'Não informado');
+    contagemEspecie[especie] = (contagemEspecie[especie] || 0) + 1;
+  });
+
+  const especiesOrdenadas = Object.entries(contagemEspecie)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  const especiesLabels = especiesOrdenadas.map(([nome]) => nome);
+  const especiesValores = especiesOrdenadas.map(([, qtd]) => qtd);
+
+  renderGraficoDashboard('grafico-especie', {
+    type: 'bar',
+    data: {
+      labels: especiesLabels.length ? especiesLabels : ['Sem dados'],
+      datasets: [{
+        label: 'Cadastros',
+        data: especiesValores.length ? especiesValores : [0],
+        backgroundColor: 'rgba(47,143,91,0.75)',
+        borderRadius: 6,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+
+  const interessesConcluidos = interessesFiltrados
+    .filter((item) => normalizarEtapaFluxo(item.statusAtendimento, 'interesse') === 'concluido').length;
+  const denunciasResolvidas = denunciasFiltradas
+    .filter((item) => normalizarEtapaFluxo(item.statusAtendimento, 'denuncia') === 'resolvida').length;
+
+  const adocoesComData = petsFiltrados
+    .filter((pet) => normalizarStatus(pet.status) === 'adotado')
+    .map((pet) => {
+      const cadastro = timestampValido(pet.criadoEm || pet.atualizadoEm);
+      const adocao = timestampValido(pet.adocaoEm || pet.atualizadoEm || pet.criadoEm);
+      if (cadastro == null || adocao == null) return null;
+      return Math.max(0, (adocao - cadastro) / (24 * 60 * 60 * 1000));
+    })
+    .filter((valor) => typeof valor === 'number');
+
+  const mediaDiasAdocao = adocoesComData.length
+    ? adocoesComData.reduce((acc, valor) => acc + valor, 0) / adocoesComData.length
+    : 0;
+
+  const postsPublicados = estado.posts.filter((post) => {
+    if (!post.publicado) return false;
+    return dentroDoPeriodoDashboard(post.data || post.criadoEm, limite);
+  }).length;
+
+  montarRelatorioIndicadoresDashboard({
+    totalPets: total,
+    adotados,
+    totalInteresses: interessesFiltrados.length,
+    interessesConcluidos,
+    totalDenuncias: denunciasFiltradas.length,
+    denunciasResolvidas,
+    mediaDiasAdocao,
+    protocolosAbertos: pedidos + denunciasAbertas,
+    postsPublicados,
+  });
+
+  renderRelatorioRankingDashboard(
+    petsFiltrados.filter((pet) => normalizarStatus(pet.status) !== 'adotado'),
+  );
+
   renderListaHistoriasAdocaoSistema();
-
-  // Gráfico mensal com Chart.js
-  const canvas = document.getElementById('grafico-dashboard');
-  if (canvas && window.Chart) {
-    const ctx = canvas.getContext('2d');
-    if (canvas._chartInstance) canvas._chartInstance.destroy();
-
-    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const agora = new Date();
-    const labels = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(agora.getFullYear(), agora.getMonth() - 5 + i, 1);
-      return meses[d.getMonth()];
-    });
-
-    const contarPorMes = (lista, campo) => labels.map((_, i) => {
-      const d = new Date(agora.getFullYear(), agora.getMonth() - 5 + i, 1);
-      return lista.filter((item) => {
-        const dt = new Date(item[campo] || item.criadoEm || 0);
-        return dt.getFullYear() === d.getFullYear() && dt.getMonth() === d.getMonth();
-      }).length;
-    });
-
-    canvas._chartInstance = new window.Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { label: 'Resgates', data: contarPorMes(estado.animais, 'atualizadoEm'), backgroundColor: 'rgba(82,178,207,0.7)', borderRadius: 6 },
-          { label: 'Adoções', data: contarPorMes(estado.animais.filter((p) => p.status === 'adotado'), 'atualizadoEm'), backgroundColor: 'rgba(255,112,150,0.7)', borderRadius: 6 },
-        ],
-      },
-      options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
-    });
-  }
-
   renderPainelOperacaoListas();
 }
 
@@ -3121,6 +3667,7 @@ function configurarPainelOperacao() {
           denuncias: estado.denuncias,
           interesses: estado.interesses,
           usuarios: estado.usuarios,
+          auditoria: estado.auditoria,
         },
         localStorage: {
           animais: readJSON(STORAGE_KEYS.animais, []),
@@ -3128,6 +3675,7 @@ function configurarPainelOperacao() {
           denuncias: readJSON(STORAGE_KEYS.denuncias, []),
           interesses: readJSON(STORAGE_KEYS.interesses, []),
           usuarios: readJSON(STORAGE_KEYS.usuarios, []),
+          auditoria: readJSON(STORAGE_KEYS.auditoria, []),
         },
       };
 
@@ -3144,6 +3692,12 @@ function configurarPainelOperacao() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+
+      registrarAuditoria({
+        acao: 'exportar',
+        entidade: 'sistema',
+        detalhes: 'Backup completo do banco de dados exportado.',
+      });
 
       setStatus('status-sistema', 'Backup exportado com sucesso.', 'ok');
     });
@@ -3343,6 +3897,12 @@ function renderListaInteresses(idAlvo) {
       const item = estado.interesses.find((registro) => registro.id === id);
       if (!item) return;
       item.statusAtendimento = normalizarEtapaFluxo(el.value, 'interesse');
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'interesse',
+        alvoId: item.id,
+        detalhes: `Etapa alterada para ${rotuloEtapaFluxo(item.statusAtendimento)}.`,
+      });
       salvarEstado();
       renderPainelOperacaoListas();
       renderDashboardSistema();
@@ -3356,6 +3916,12 @@ function renderListaInteresses(idAlvo) {
       const item = estado.interesses.find((registro) => registro.id === id);
       if (!item) return;
       item.statusAtendimento = 'arquivado';
+      registrarAuditoria({
+        acao: 'arquivar',
+        entidade: 'interesse',
+        alvoId: item.id,
+        detalhes: 'Pedido de adoção arquivado.',
+      });
       salvarEstado();
       renderPainelOperacaoListas();
       renderDashboardSistema();
@@ -3376,6 +3942,12 @@ function renderListaInteresses(idAlvo) {
       }
 
       salvarEstado();
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'interesse',
+        alvoId: item.id,
+        detalhes: `Pedido avançado para ${rotuloEtapaFluxo(item.statusAtendimento)}.`,
+      });
       renderPainelOperacaoListas();
       renderDashboardSistema();
       setStatus('status-interesses-admin', `Pedido avançado para ${rotuloEtapaFluxo(item.statusAtendimento)}.`, 'ok');
@@ -3388,6 +3960,12 @@ function renderListaInteresses(idAlvo) {
       const item = estado.interesses.find((registro) => registro.id === id);
       if (!item) return;
       item.prioridadeAtendimento = normalizarPrioridadeFluxo(el.value);
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'interesse',
+        alvoId: item.id,
+        detalhes: `Prioridade alterada para ${rotuloPrioridadeFluxo(item.prioridadeAtendimento)}.`,
+      });
       salvarEstado();
       renderPainelOperacaoListas();
       setStatus('status-interesses-admin', 'Prioridade do pedido atualizada.', 'ok');
@@ -3468,6 +4046,12 @@ function renderListaDenuncias(idAlvo) {
       const item = estado.denuncias.find((registro) => registro.id === id);
       if (!item) return;
       item.statusAtendimento = normalizarEtapaFluxo(el.value, 'denuncia');
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'denuncia',
+        alvoId: item.id,
+        detalhes: `Etapa alterada para ${rotuloEtapaFluxo(item.statusAtendimento)}.`,
+      });
       salvarEstado();
       renderPainelOperacaoListas();
       setStatus('status-denuncias-admin', 'Etapa da denúncia atualizada com sucesso.', 'ok');
@@ -3480,6 +4064,12 @@ function renderListaDenuncias(idAlvo) {
       const item = estado.denuncias.find((registro) => registro.id === id);
       if (!item) return;
       item.statusAtendimento = 'resolvida';
+      registrarAuditoria({
+        acao: 'resolver',
+        entidade: 'denuncia',
+        alvoId: item.id,
+        detalhes: 'Denúncia marcada como resolvida.',
+      });
       salvarEstado();
       renderPainelOperacaoListas();
       setStatus('status-denuncias-admin', 'Denúncia marcada como resolvida.', 'ok');
@@ -3499,6 +4089,12 @@ function renderListaDenuncias(idAlvo) {
       }
 
       salvarEstado();
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'denuncia',
+        alvoId: item.id,
+        detalhes: `Denúncia avançada para ${rotuloEtapaFluxo(item.statusAtendimento)}.`,
+      });
       renderPainelOperacaoListas();
       setStatus('status-denuncias-admin', `Denúncia avançada para ${rotuloEtapaFluxo(item.statusAtendimento)}.`, 'ok');
     });
@@ -3510,6 +4106,12 @@ function renderListaDenuncias(idAlvo) {
       const item = estado.denuncias.find((registro) => registro.id === id);
       if (!item) return;
       item.prioridadeAtendimento = normalizarPrioridadeFluxo(el.value);
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'denuncia',
+        alvoId: item.id,
+        detalhes: `Prioridade alterada para ${rotuloPrioridadeFluxo(item.prioridadeAtendimento)}.`,
+      });
       salvarEstado();
       renderPainelOperacaoListas();
       setStatus('status-denuncias-admin', 'Prioridade da denúncia atualizada.', 'ok');
@@ -3633,6 +4235,12 @@ function renderListaHistoriasAdocaoSistema() {
       pet.historiaTitulo = titulo;
       pet.historiaAtualizadoEm = new Date().toISOString();
       pet.atualizadoEm = new Date().toISOString();
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'historia',
+        alvoId: pet.id,
+        detalhes: `História de adoção de ${pet.nome} salva.`,
+      });
       salvarEstado();
       renderListaHistoriasAdocaoSistema();
       renderTestemunhosProjeto();
@@ -3653,6 +4261,12 @@ function renderListaHistoriasAdocaoSistema() {
         pet.historiaAtualizadoEm = new Date().toISOString();
         pet.historiaPublicadoEm = '';
         pet.atualizadoEm = new Date().toISOString();
+        registrarAuditoria({
+          acao: 'despublicar',
+          entidade: 'historia',
+          alvoId: pet.id,
+          detalhes: `História de adoção de ${pet.nome} removida do site.`,
+        });
         salvarEstado();
         renderListaHistoriasAdocaoSistema();
         renderTestemunhosProjeto();
@@ -3680,6 +4294,12 @@ function renderListaHistoriasAdocaoSistema() {
       pet.historiaAtualizadoEm = new Date().toISOString();
       pet.historiaPublicadoEm = new Date().toISOString();
       pet.atualizadoEm = new Date().toISOString();
+      registrarAuditoria({
+        acao: 'publicar',
+        entidade: 'historia',
+        alvoId: pet.id,
+        detalhes: `História de adoção de ${pet.nome} publicada no site.`,
+      });
       salvarEstado();
       renderListaHistoriasAdocaoSistema();
       renderTestemunhosProjeto();
@@ -3699,6 +4319,12 @@ function renderListaHistoriasAdocaoSistema() {
       pet.historiaPublicadoEm = '';
       pet.historiaAtualizadoEm = new Date().toISOString();
       pet.atualizadoEm = new Date().toISOString();
+      registrarAuditoria({
+        acao: 'limpar',
+        entidade: 'historia',
+        alvoId: pet.id,
+        detalhes: `Texto da história de ${pet.nome} foi limpo.`,
+      });
       salvarEstado();
       renderListaHistoriasAdocaoSistema();
       renderTestemunhosProjeto();
@@ -3843,9 +4469,21 @@ function configurarBlogSistema() {
     if (idx >= 0) {
       const dataOriginal = estado.posts[idx].data;
       estado.posts[idx] = { ...estado.posts[idx], ...post, data: dataOriginal };
+      registrarAuditoria({
+        acao: 'editar',
+        entidade: 'post',
+        alvoId: id,
+        detalhes: `Post \"${post.titulo}\" atualizado.`,
+      });
       setStatus('status-blog', 'Post atualizado com sucesso.', 'ok');
     } else {
       estado.posts.unshift(post);
+      registrarAuditoria({
+        acao: 'criar',
+        entidade: 'post',
+        alvoId: id,
+        detalhes: `Post \"${post.titulo}\" criado.`,
+      });
       setStatus('status-blog', 'Post criado com sucesso.', 'ok');
     }
 
@@ -3922,6 +4560,12 @@ function renderListaBlogSistema() {
       if (!confirmou) return;
 
       estado.posts = estado.posts.filter((item) => item.id !== id);
+      registrarAuditoria({
+        acao: 'excluir',
+        entidade: 'post',
+        alvoId: post.id,
+        detalhes: `Post \"${post.titulo}\" excluído.`,
+      });
       salvarEstado();
       renderListaBlogSistema();
       setStatus('status-blog', 'Post excluído com sucesso.', 'ok');
@@ -4217,9 +4861,21 @@ function configurarUsuariosSistema() {
         const idx = estado.usuarios.findIndex((item) => item.id === usuarioAlvo.id);
         if (idx < 0) return;
         estado.usuarios[idx] = usuarioAtualizado;
+        registrarAuditoria({
+          acao: 'editar',
+          entidade: 'usuario',
+          alvoId: usuarioAtualizado.id,
+          detalhes: `Usuário ${usuarioAtualizado.login} atualizado (${rotuloPerfilAcesso(usuarioAtualizado.perfil)}).`,
+        });
         setStatus('status-usuario', 'Usuário atualizado com sucesso.', 'ok');
       } else {
         estado.usuarios.unshift(usuarioAtualizado);
+        registrarAuditoria({
+          acao: 'criar',
+          entidade: 'usuario',
+          alvoId: usuarioAtualizado.id,
+          detalhes: `Usuário ${usuarioAtualizado.login} cadastrado (${rotuloPerfilAcesso(usuarioAtualizado.perfil)}).`,
+        });
         setStatus('status-usuario', 'Usuário cadastrado com sucesso.', 'ok');
       }
 
@@ -4331,7 +4987,6 @@ function renderListaUsuariosSistema() {
               <button class="mini-btn" type="button" data-toggle-usuario="${usuario.id}">
                 ${usuario.ativo ? 'Inativar' : 'Ativar'}
               </button>
-              <button class="mini-btn" type="button" data-reset-usuario="${usuario.id}">Resetar senha</button>
               ` : ''}
             </div>
           </div>
@@ -4358,6 +5013,12 @@ function renderListaUsuariosSistema() {
       if (!usuario) return;
 
       usuario.ativo = !usuario.ativo;
+      registrarAuditoria({
+        acao: usuario.ativo ? 'ativar' : 'inativar',
+        entidade: 'usuario',
+        alvoId: usuario.id,
+        detalhes: `Conta ${usuario.login} ${usuario.ativo ? 'ativada' : 'inativada'}.`,
+      });
       salvarEstado();
       renderListaUsuariosSistema();
       atualizarSessaoUsuarioSeNecessario(usuario);
@@ -4365,20 +5026,198 @@ function renderListaUsuariosSistema() {
     });
   });
 
-  lista.querySelectorAll('[data-reset-usuario]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (!ehAdmin) {
-        setStatus('status-usuario', 'Somente administradores podem resetar senhas.', 'erro');
+}
+
+function configurarAuditoriaSistema() {
+  const lista = document.getElementById('lista-auditoria');
+  if (!lista) return;
+
+  const usuarioSessao = obterUsuarioSessaoAtual();
+  if (!usuarioEhAdmin(usuarioSessao)) return;
+
+  const filtros = [
+    ['filtro-auditoria-busca', 'input'],
+    ['filtro-auditoria-entidade', 'change'],
+    ['filtro-auditoria-ator', 'change'],
+  ];
+
+  filtros.forEach(([id, evento]) => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.auditoriaFiltroConfigurado === 'true') return;
+    el.dataset.auditoriaFiltroConfigurado = 'true';
+    el.addEventListener(evento, () => {
+      auditoriaPaginaAtual = 1;
+      renderListaAuditoriaSistema();
+    });
+  });
+
+  const btnExportarCsv = document.getElementById('btn-exportar-auditoria-csv');
+  if (btnExportarCsv && btnExportarCsv.dataset.auditoriaCsvConfigurado !== 'true') {
+    btnExportarCsv.dataset.auditoriaCsvConfigurado = 'true';
+    btnExportarCsv.addEventListener('click', () => {
+      const logs = obterLogsAuditoriaFiltrados();
+      if (!logs.length) {
+        setStatus('status-auditoria', 'Não há logs para exportar com os filtros atuais.', 'aviso');
         return;
       }
-      const id = btn.getAttribute('data-reset-usuario');
-      const usuario = estado.usuarios.find((item) => item.id === id);
-      if (!usuario) return;
 
-      usuario.senhaHash = encode('123456');
-      salvarEstado();
-      setStatus('status-usuario', `Senha de ${usuario.login} (${formatarCpf(usuario.cpf || usuario.id)}) redefinida para 123456.`, 'ok');
+      const cabecalho = ['Data/Hora', 'Ação', 'Entidade', 'Alvo', 'Usuário', 'Login', 'Perfil', 'Detalhes'];
+      const linhas = logs.map((item) => [
+        formatarDataHora(item.criadoEm),
+        item.acao,
+        item.entidade,
+        item.alvoId || '',
+        item.usuarioNome || '',
+        item.usuarioLogin || '',
+        rotuloPerfilAcesso(item.usuarioPerfil || 'publico'),
+        item.detalhes || '',
+      ]);
+
+      const conteudoCsv = [cabecalho, ...linhas]
+        .map((colunas) => colunas.map((coluna) => escaparCsv(coluna)).join(';'))
+        .join('\n');
+
+      const blob = new Blob(['\uFEFF', conteudoCsv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const data = new Date();
+      const sufixo = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}_${String(data.getHours()).padStart(2, '0')}${String(data.getMinutes()).padStart(2, '0')}${String(data.getSeconds()).padStart(2, '0')}`;
+
+      link.href = url;
+      link.download = `auditoria-canil-vilhena-${sufixo}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      registrarAuditoria({
+        acao: 'exportar-csv',
+        entidade: 'auditoria',
+        detalhes: `Exportação CSV da auditoria com ${logs.length} registros.`,
+      });
+      setStatus('status-auditoria', 'Arquivo CSV exportado com sucesso.', 'ok');
     });
+  }
+
+  const btnLimpar = document.getElementById('btn-limpar-auditoria');
+  if (btnLimpar && btnLimpar.dataset.auditoriaLimparConfigurado !== 'true') {
+    btnLimpar.dataset.auditoriaLimparConfigurado = 'true';
+    btnLimpar.addEventListener('click', () => {
+      const confirmou = window.confirm('Deseja limpar todo o histórico de auditoria?');
+      if (!confirmou) return;
+
+      estado.auditoria = [];
+      auditoriaPaginaAtual = 1;
+      localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
+      registrarAuditoria({
+        acao: 'limpar-logs',
+        entidade: 'auditoria',
+        detalhes: 'Histórico de auditoria limpo manualmente.',
+      });
+      setStatus('status-auditoria', 'Logs de auditoria limpos.', 'ok');
+      renderListaAuditoriaSistema();
+    });
+  }
+
+  renderListaAuditoriaSistema();
+}
+
+function obterLogsAuditoriaFiltrados() {
+  const busca = normalizarTextoBusca(inputValue('filtro-auditoria-busca'));
+  const entidadeFiltro = inputValue('filtro-auditoria-entidade') || 'todas';
+  const perfilFiltro = inputValue('filtro-auditoria-ator') || 'todos';
+
+  const registros = Array.isArray(estado.auditoria) ? [...estado.auditoria] : [];
+  registros.sort((a, b) => new Date(b.criadoEm || 0).getTime() - new Date(a.criadoEm || 0).getTime());
+
+  return registros.filter((item) => {
+    const bag = normalizarTextoBusca([
+      item.acao,
+      item.entidade,
+      item.alvoId,
+      item.detalhes,
+      item.usuarioNome,
+      item.usuarioLogin,
+      item.usuarioPerfil,
+    ].join(' '));
+
+    const bateBusca = !busca || bag.includes(busca);
+    const bateEntidade = entidadeFiltro === 'todas' || String(item.entidade || '') === entidadeFiltro;
+    const batePerfil = perfilFiltro === 'todos' || String(item.usuarioPerfil || '') === perfilFiltro;
+
+    return bateBusca && bateEntidade && batePerfil;
+  });
+}
+
+function renderListaAuditoriaSistema() {
+  const lista = document.getElementById('lista-auditoria');
+  const badge = document.getElementById('qtd-auditoria');
+  const paginacao = document.getElementById('auditoria-paginacao');
+  if (!lista || !badge) return;
+
+  const usuarioSessao = obterUsuarioSessaoAtual();
+  if (!usuarioEhAdmin(usuarioSessao)) {
+    lista.innerHTML = '';
+    badge.textContent = '';
+    if (paginacao) paginacao.innerHTML = '';
+    return;
+  }
+
+  const logsFiltrados = obterLogsAuditoriaFiltrados();
+  const total = Array.isArray(estado.auditoria) ? estado.auditoria.length : 0;
+  badge.textContent = `${logsFiltrados.length}/${total} registros`;
+
+  if (!total) {
+    lista.innerHTML = '<div class="vazio">Nenhum log de auditoria registrado ainda.</div>';
+    if (paginacao) paginacao.innerHTML = '';
+    return;
+  }
+
+  if (!logsFiltrados.length) {
+    lista.innerHTML = '<div class="vazio">Nenhum log encontrado com os filtros atuais.</div>';
+    if (paginacao) paginacao.innerHTML = '';
+    return;
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(logsFiltrados.length / AUDITORIA_LOGS_POR_PAGINA));
+  auditoriaPaginaAtual = Math.min(Math.max(1, auditoriaPaginaAtual), totalPaginas);
+  const inicio = (auditoriaPaginaAtual - 1) * AUDITORIA_LOGS_POR_PAGINA;
+  const logsPaginados = logsFiltrados.slice(inicio, inicio + AUDITORIA_LOGS_POR_PAGINA);
+
+  lista.innerHTML = logsPaginados
+    .map((item) => {
+      const acao = escaparHtml(String(item.acao || '').replace(/-/g, ' '));
+      const entidade = escaparHtml(item.entidade || 'sistema');
+      const detalhes = escaparHtml(item.detalhes || 'Sem detalhes');
+      const alvo = escaparHtml(item.alvoId || '—');
+      const usuario = escaparHtml(item.usuarioNome || 'Usuário não identificado');
+      const login = escaparHtml(item.usuarioLogin || '—');
+      const perfil = escaparHtml(rotuloPerfilAcesso(item.usuarioPerfil || 'publico'));
+      const quando = formatarDataHora(item.criadoEm);
+
+      return `
+        <article class="painel auditoria-item">
+          <div class="auditoria-topo">
+            <h4>${acao} • ${entidade}</h4>
+            <span class="badge">${quando}</span>
+          </div>
+          <p class="texto-suave">Usuário: <strong>${usuario}</strong> (${login}) • Perfil: ${perfil}</p>
+          <p class="texto-suave">Alvo: ${alvo}</p>
+          <p>${detalhes}</p>
+        </article>
+      `;
+    })
+    .join('');
+
+  renderPaginacaoNumerica({
+    alvo: paginacao,
+    totalPaginas,
+    paginaAtual: auditoriaPaginaAtual,
+    onChange: (novaPagina) => {
+      auditoriaPaginaAtual = novaPagina;
+      renderListaAuditoriaSistema();
+      document.getElementById('lista-auditoria')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
   });
 }
 

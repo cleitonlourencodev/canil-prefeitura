@@ -71,6 +71,7 @@
           <button class="tab-btn" data-target="tab-historias">Histórias de Adoção</button>
           <button class="tab-btn" data-target="tab-blog">Blog e Notícias</button>
           <button class="tab-btn" data-target="tab-usuarios">Usuários</button>
+          <button class="tab-btn" data-target="tab-auditoria">Auditoria</button>
           <button class="tab-btn" data-target="tab-config">Configurações</button>
         </aside>
 
@@ -79,7 +80,34 @@
 
           <!-- TAB: Dashboard -->
           <div id="tab-dashboard" class="sistema-tab ativo">
-            <h2 class="titulo-tab">Visao Geral do Sistema</h2>
+            <div class="tab-header">
+              <h2 class="titulo-tab">Visao Geral do Sistema</h2>
+              <div class="tab-header-acoes">
+                <button id="btn-dash-imprimir-tudo" class="btn">Imprimir dashboard</button>
+              </div>
+            </div>
+
+            <div class="filtros painel filtros-admin filtros-dashboard">
+              <select id="dash-filtro-periodo">
+                <option value="30">Últimos 30 dias</option>
+                <option value="90" selected>Últimos 90 dias</option>
+                <option value="180">Últimos 180 dias</option>
+                <option value="365">Últimos 12 meses</option>
+                <option value="todos">Todo o período</option>
+              </select>
+              <select id="dash-filtro-status-animal">
+                <option value="todos" selected>Todos os status de pets</option>
+                <option value="disponível">Somente disponíveis</option>
+                <option value="adotado">Somente adotados</option>
+                <option value="em tratamento">Somente em tratamento</option>
+              </select>
+              <select id="dash-filtro-fluxo">
+                <option value="todos" selected>Todos os protocolos</option>
+                <option value="abertos">Somente em andamento</option>
+                <option value="finalizados">Somente concluídos/resolvidos</option>
+              </select>
+            </div>
+
             <div class="dashboard-grid">
               <article>
                 <p>Pets Catalogados</p>
@@ -97,10 +125,76 @@
                 <p>Pedidos Pendentes</p>
                 <strong id="dash-pedidos">0</strong>
               </article>
+              <article class="dashboard-card-ocean">
+                <p>Denúncias Abertas</p>
+                <strong id="dash-denuncias-abertas">0</strong>
+              </article>
+              <article class="dashboard-card-green">
+                <p>Usuários Ativos</p>
+                <strong id="dash-usuarios-ativos">0</strong>
+              </article>
             </div>
-            <div class="painel painel-grafico">
-              <h3 class="grafico-titulo">Evolução Mensal de Resgates e Adoções</h3>
-              <canvas id="grafico-dashboard" height="80"></canvas>
+
+            <div class="dashboard-paineis-grid">
+              <section id="print-evolucao" class="painel painel-grafico dashboard-print-area">
+                <div class="dashboard-painel-topo">
+                  <h3 class="grafico-titulo">Evolução Mensal de Resgates e Adoções</h3>
+                  <button class="mini-btn btn-imprimir-dashboard" type="button" data-print-dashboard-target="print-evolucao">Imprimir</button>
+                </div>
+                <canvas id="grafico-dashboard" height="80"></canvas>
+              </section>
+
+              <section id="print-status-pets" class="painel painel-grafico dashboard-print-area">
+                <div class="dashboard-painel-topo">
+                  <h3 class="grafico-titulo">Distribuição de Pets por Status</h3>
+                  <button class="mini-btn btn-imprimir-dashboard" type="button" data-print-dashboard-target="print-status-pets">Imprimir</button>
+                </div>
+                <canvas id="grafico-status-pets" height="95"></canvas>
+              </section>
+
+              <section id="print-fluxo" class="painel painel-grafico dashboard-print-area">
+                <div class="dashboard-painel-topo">
+                  <h3 class="grafico-titulo">Protocolos por Etapa</h3>
+                  <button class="mini-btn btn-imprimir-dashboard" type="button" data-print-dashboard-target="print-fluxo">Imprimir</button>
+                </div>
+                <canvas id="grafico-fluxo" height="95"></canvas>
+              </section>
+
+              <section id="print-especie" class="painel painel-grafico dashboard-print-area">
+                <div class="dashboard-painel-topo">
+                  <h3 class="grafico-titulo">Cadastro de Pets por Espécie</h3>
+                  <button class="mini-btn btn-imprimir-dashboard" type="button" data-print-dashboard-target="print-especie">Imprimir</button>
+                </div>
+                <canvas id="grafico-especie" height="200"></canvas>
+              </section>
+
+              <section id="print-relatorio-resumo" class="painel dashboard-print-area relatorio-dashboard">
+                <div class="dashboard-painel-topo">
+                  <h3 class="grafico-titulo">Relatório de Indicadores</h3>
+                  <button class="mini-btn btn-imprimir-dashboard" type="button" data-print-dashboard-target="print-relatorio-resumo">Imprimir</button>
+                </div>
+                <div id="relatorio-indicadores" class="relatorio-indicadores"></div>
+              </section>
+
+              <section id="print-relatorio-ranking" class="painel dashboard-print-area relatorio-dashboard">
+                <div class="dashboard-painel-topo">
+                  <h3 class="grafico-titulo">Relatório de Pets há Mais Tempo sem Adoção</h3>
+                  <button class="mini-btn btn-imprimir-dashboard" type="button" data-print-dashboard-target="print-relatorio-ranking">Imprimir</button>
+                </div>
+                <div class="tabela-relatorio-wrap">
+                  <table class="tabela-relatorio-dashboard">
+                    <thead>
+                      <tr>
+                        <th>Pet</th>
+                        <th>Status</th>
+                        <th>Data de Cadastro</th>
+                        <th>Dias em Aberto</th>
+                      </tr>
+                    </thead>
+                    <tbody id="relatorio-ranking-pets"></tbody>
+                  </table>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -226,8 +320,8 @@
                 <div>
                   <label class="campo-label">Espécie *</label>
                   <select id="especie-animal" required>
-                    <option value="Cachorro">Cachorro</option>
-                    <option value="Gato">Gato</option>
+                    <option value="cão">Cão</option>
+                    <option value="gato">Gato</option>
                   </select>
                 </div>
                 <div>
@@ -583,6 +677,43 @@
               <button id="btn-exportar-dados" class="btn btn-principal">Exportar banco de dados completo</button>
               <p class="texto-suave mt-sm">Arquivo recomendado para backup e migração entre dispositivos.</p>
             </div>
+          </div>
+
+          <!-- TAB: Auditoria -->
+          <div id="tab-auditoria" class="sistema-tab">
+            <div class="tab-header">
+              <h2 class="titulo-tab">Logs de Auditoria</h2>
+              <div class="tab-header-acoes">
+                <span id="qtd-auditoria" class="badge-contador"></span>
+                <button id="btn-exportar-auditoria-csv" class="btn btn-principal">Exportar CSV</button>
+                <button id="btn-limpar-auditoria" class="btn btn-secundario">Limpar logs</button>
+              </div>
+            </div>
+            <p class="texto-suave texto-intro">Histórico de ações do sistema com data, responsável e descrição da alteração.</p>
+            <div id="status-auditoria" aria-live="polite"></div>
+            <div class="filtros painel filtros-admin filtros-auditoria">
+              <input type="text" id="filtro-auditoria-busca" placeholder="Buscar por ação, entidade, usuário ou detalhe...">
+              <select id="filtro-auditoria-entidade">
+                <option value="todas">Todas as entidades</option>
+                <option value="pet">Pets</option>
+                <option value="post">Blog</option>
+                <option value="usuario">Usuários</option>
+                <option value="interesse">Pedidos de adoção</option>
+                <option value="denuncia">Denúncias</option>
+                <option value="historia">Histórias de adoção</option>
+                <option value="sistema">Sistema</option>
+                <option value="auditoria">Auditoria</option>
+              </select>
+              <select id="filtro-auditoria-ator">
+                <option value="todos">Todos os perfis</option>
+                <option value="admin">Administrador</option>
+                <option value="veterinario">Veterinário(a)</option>
+                <option value="cuidador">Cuidador(a)</option>
+                <option value="publico">Site público</option>
+              </select>
+            </div>
+            <div id="lista-auditoria" class="lista-gap"></div>
+            <div id="auditoria-paginacao" class="lista-paginacao"></div>
           </div>
 
         </main>
