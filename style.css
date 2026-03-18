@@ -1369,6 +1369,10 @@ input:focus, select:focus, textarea:focus {
   flex: 1 1 190px;
   margin-bottom: 0;
 }
+.filtros-admin input[type="date"] {
+  min-width: 170px;
+  flex: 0 1 190px;
+}
 .texto-intro { margin-bottom: 2rem; }
 .texto-foto-ajuda {
   margin-bottom: 1rem;
@@ -1942,6 +1946,38 @@ input:focus, select:focus, textarea:focus {
 .sistema-tab .item-gestao p  { font-size: 0.88rem; color: var(--text-soft); margin-bottom: 0.2rem; }
 .sistema-tab .item-acoes { display: flex; gap: 0.6rem; margin-top: 0.6rem; flex-wrap: wrap; }
 .sistema-tab .item-gestao > div { min-width: 0; }
+.usuario-perfil-selo {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.42rem;
+  vertical-align: middle;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.18rem 0.58rem;
+}
+.usuario-perfil-selo.perfil-admin {
+  background: #fde8e8;
+  color: #9b1c1c;
+  border-color: #f3b9b9;
+}
+.usuario-perfil-selo.perfil-veterinario {
+  background: #e8f4fd;
+  color: #175f85;
+  border-color: #b7def5;
+}
+.usuario-perfil-selo.perfil-cuidador {
+  background: #e8f8f0;
+  color: #1f7a4f;
+  border-color: #bfe8d2;
+}
+.usuario-perfil-selo.selo-topbar {
+  margin-left: 0.5rem;
+  font-size: 0.66rem;
+  padding: 0.16rem 0.5rem;
+}
 .sistema-tab .item-gestao h4,
 .sistema-tab .item-gestao p,
 .sistema-tab .blog-item h4,
@@ -2128,6 +2164,18 @@ input:focus, select:focus, textarea:focus {
   font-size: 0.78rem;
   font-weight: 700;
   padding: 0.28rem 0.62rem;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+.fluxo-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.fluxo-chip.ativo {
+  background: #e8f4fd;
+  border-color: #b7def5;
+  color: #175f85;
 }
 .fluxo-item {
   gap: 0.6rem;
@@ -2215,6 +2263,23 @@ input:focus, select:focus, textarea:focus {
 }
 .fluxo-acoes {
   align-items: center;
+}
+.sistema-tab .mini-btn.btn-proxima-fase {
+  background: linear-gradient(135deg, #ffe9a8 0%, #ffd16e 100%);
+  border-color: #e9b546;
+  color: #5a3e00;
+  box-shadow: 0 3px 10px rgba(233, 181, 70, 0.25);
+}
+.sistema-tab .mini-btn.btn-proxima-fase:hover {
+  background: linear-gradient(135deg, #ffd86a 0%, #ffbe47 100%);
+  border-color: #d79f2d;
+  color: #4a3100;
+}
+.sistema-tab .mini-btn.btn-proxima-fase:disabled {
+  background: #efefef;
+  border-color: #d8d8d8;
+  color: #8a8a8a;
+  box-shadow: none;
 }
 .fluxo-sla {
   font-weight: 800;

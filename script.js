@@ -1033,14 +1033,28 @@ function garantirDadosBase() {
     ...post,
   }));
 
+  estado.usuarios = estado.usuarios.map((usuario) => ({
+    ...usuario,
+    cpf: normalizarCpf(usuario.cpf || ''),
+    email: String(usuario.email || '').trim().toLowerCase(),
+    contato: String(usuario.contato || '').trim(),
+    login: String(usuario.login || '').trim().toLowerCase(),
+  }));
+
   estado.animais = estado.animais.map((pet) => {
     const statusNormalizado = normalizarStatus(pet.status);
     const tituloHistoria = String(pet.historiaTitulo || '').trim();
     const textoHistoria = String(pet.historiaAdocao || '').trim();
+    const criadoEm = String(pet.criadoEm || pet.atualizadoEm || new Date().toISOString());
+    const adocaoEm = statusNormalizado === 'adotado'
+      ? String(pet.adocaoEm || pet.atualizadoEm || criadoEm)
+      : '';
 
     const atualizado = {
       ...pet,
       status: statusNormalizado,
+      criadoEm,
+      adocaoEm,
       historiaTitulo: tituloHistoria,
       historiaAdocao: textoHistoria,
       historiaPublicado: Boolean(pet.historiaPublicado),
@@ -1051,6 +1065,7 @@ function garantirDadosBase() {
     if (statusNormalizado !== 'adotado') {
       atualizado.adotante = '';
       atualizado.telefoneAdotante = '';
+      atualizado.adocaoEm = '';
       atualizado.historiaPublicado = false;
       atualizado.historiaPublicadoEm = '';
     }
@@ -1154,6 +1169,49 @@ function normalizarPrioridadeFluxo(valor) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
   return PRIORIDADES_FLUXO.find((item) => item === base) || 'media';
+}
+
+function normalizarCpf(valor) {
+  return String(valor || '').replace(/\D/g, '');
+}
+
+function formatarCpf(valor) {
+  const cpf = normalizarCpf(valor);
+  if (cpf.length !== 11) return cpf || 'CPF não informado';
+  return `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9, 11)}`;
+}
+
+function validarCpf(valor) {
+  const cpf = normalizarCpf(valor);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+  const digitoVerificador = (base, fatorInicial) => {
+    let total = 0;
+    for (let i = 0; i < base.length; i += 1) {
+      total += Number(base[i]) * (fatorInicial - i);
+    }
+    const resto = (total * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+
+  const d1 = digitoVerificador(cpf.slice(0, 9), 10);
+  const d2 = digitoVerificador(cpf.slice(0, 10), 11);
+  return d1 === Number(cpf[9]) && d2 === Number(cpf[10]);
+}
+
+function validarEmailBasico(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim().toLowerCase());
+}
+
+function formatarContato(valor) {
+  const digitos = String(valor || '').replace(/\D/g, '');
+  if (digitos.length === 11) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7, 11)}`;
+  }
+  if (digitos.length === 10) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6, 10)}`;
+  }
+  return String(valor || '').trim() || 'Contato não informado';
 }
 
 function rotuloPrioridadeFluxo(valor) {
@@ -2103,7 +2161,7 @@ function configurarLoginSistema() {
     sessionStorage.removeItem(SESSION_KEYS.usuario);
     sessionStorage.removeItem(SESSION_KEYS.abaSistema);
     mostrarAreaSistema(false);
-    setText('usuario-logado', '');
+    renderUsuarioLogadoTopbar(null);
     if (btnLogout) { btnLogout.style.display = 'none'; }
     const formLogin = document.getElementById('form-login-sistema');
     // Só limpa os campos se não estava lembrando
@@ -2127,7 +2185,7 @@ function renderSistemaAutenticado() {
 
   const usuario = readSessionUser();
   if (usuario) {
-    setText('usuario-logado', `${usuario.nome} (${usuario.perfil})`);
+    renderUsuarioLogadoTopbar(usuario);
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
       btnLogout.style.display = '';
@@ -2290,12 +2348,35 @@ function configurarTabsSistema() {
   const paineis = [...document.querySelectorAll('.sistema-tab')];
   if (!botoes.length || !paineis.length) return;
 
-  const abaSalva = sessionStorage.getItem(SESSION_KEYS.abaSistema) || 'tab-dashboard';
+  const usuarioSessao = obterUsuarioSessaoAtual() || readSessionUser();
+  const ehAdmin = usuarioEhAdmin(usuarioSessao);
+
+  const botaoConfig = botoes.find((b) => b.getAttribute('data-target') === 'tab-config');
+  const painelConfig = paineis.find((p) => p.id === 'tab-config');
+
+  if (botaoConfig) {
+    botaoConfig.hidden = !ehAdmin;
+    botaoConfig.style.display = ehAdmin ? '' : 'none';
+  }
+
+  if (painelConfig) {
+    painelConfig.hidden = !ehAdmin;
+    painelConfig.style.display = ehAdmin ? '' : 'none';
+  }
+
+  const resolverAbaPermitida = (aba) => {
+    if (!aba) return 'tab-dashboard';
+    if (aba === 'tab-config' && !ehAdmin) return 'tab-dashboard';
+    return aba;
+  };
+
+  const abaSalva = resolverAbaPermitida(sessionStorage.getItem(SESSION_KEYS.abaSistema) || 'tab-dashboard');
   ativarAbaSistema(abaSalva);
+  sessionStorage.setItem(SESSION_KEYS.abaSistema, abaSalva);
 
   botoes.forEach((botao) => {
     botao.addEventListener('click', () => {
-      const aba = botao.getAttribute('data-target') || 'tab-dashboard';
+      const aba = resolverAbaPermitida(botao.getAttribute('data-target') || 'tab-dashboard');
       ativarAbaSistema(aba);
       sessionStorage.setItem(SESSION_KEYS.abaSistema, aba);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2673,8 +2754,10 @@ function configurarFormularioPet() {
     event.preventDefault();
 
     const id = inputValue('animal-id') || `pet-${crypto.randomUUID()}`;
+    const agoraIso = new Date().toISOString();
     const petAnterior = estado.animais.find((item) => item.id === id);
     const statusNormalizado = normalizarStatus(inputValue('status-animal'));
+    const eraAdotado = normalizarStatus(petAnterior?.status || '') === 'adotado';
     const adotanteNome = statusNormalizado === 'adotado' ? inputValue('adotante') : '';
     const telefoneAdotante = statusNormalizado === 'adotado' ? inputValue('telefone-adotante') : '';
 
@@ -2700,6 +2783,10 @@ function configurarFormularioPet() {
       observacaoInterna: inputValue('observacao-interna'),
       adotante: adotanteNome,
       telefoneAdotante: telefoneAdotante,
+      criadoEm: String(petAnterior?.criadoEm || agoraIso),
+      adocaoEm: statusNormalizado === 'adotado'
+        ? String(eraAdotado ? (petAnterior?.adocaoEm || petAnterior?.atualizadoEm || agoraIso) : agoraIso)
+        : '',
       historiaAdocao: petAnterior?.historiaAdocao || '',
       historiaTitulo: petAnterior?.historiaTitulo || '',
       historiaPublicado: statusNormalizado === 'adotado' ? Boolean(petAnterior?.historiaPublicado) : false,
@@ -2708,7 +2795,7 @@ function configurarFormularioPet() {
       galeria: galeriaAtual.length ? galeriaAtual : [FALLBACK_FOTO],
       fotoPerfilIndex: perfilIndexAtual,
       fotoPerfilAjuste: obterAjusteAtual(),
-      atualizadoEm: new Date().toISOString(),
+      atualizadoEm: agoraIso,
     };
 
     if (!pet.nome || !pet.especie || !pet.descricao || !pet.temperamento) {
@@ -2746,18 +2833,18 @@ function configurarFormularioPet() {
   // Filtros de busca na lista
   const inputBusca = document.getElementById('filtro-admin-busca');
   const selectStatus = document.getElementById('filtro-admin-status');
-  const aplicarFiltros = () => {
-    const busca = (inputBusca?.value || '').toLowerCase();
-    const status = selectStatus?.value || 'todos';
-    document.querySelectorAll('#lista-animais-sistema article.item-gestao').forEach((article) => {
-      const texto = article.textContent.toLowerCase();
-      const statusOk = status === 'todos' || texto.includes(status.toLowerCase());
-      const buscaOk = !busca || texto.includes(busca);
-      article.style.display = statusOk && buscaOk ? '' : 'none';
-    });
-  };
-  inputBusca?.addEventListener('input', aplicarFiltros);
-  selectStatus?.addEventListener('change', aplicarFiltros);
+  const selectOrdenacao = document.getElementById('filtro-admin-ordenacao');
+  const selectCampoData = document.getElementById('filtro-admin-campo-data');
+  const inputDataInicio = document.getElementById('filtro-admin-data-inicio');
+  const inputDataFim = document.getElementById('filtro-admin-data-fim');
+  const atualizarListaGestao = () => renderListaGestaoPets();
+
+  inputBusca?.addEventListener('input', atualizarListaGestao);
+  selectStatus?.addEventListener('change', atualizarListaGestao);
+  selectOrdenacao?.addEventListener('change', atualizarListaGestao);
+  selectCampoData?.addEventListener('change', atualizarListaGestao);
+  inputDataInicio?.addEventListener('change', atualizarListaGestao);
+  inputDataFim?.addEventListener('change', atualizarListaGestao);
   inputStatusAnimal?.addEventListener('change', sincronizarCamposAdotantePorStatus);
 
   const carregarPetNoForm = (petId) => {
@@ -2814,17 +2901,117 @@ function configurarFormularioPet() {
   resetForm();
 }
 
+function normalizarTextoBusca(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function timestampValido(valor) {
+  const data = new Date(valor);
+  const numero = data.getTime();
+  return Number.isNaN(numero) ? null : numero;
+}
+
+function timestampDataInput(valor, fimDoDia = false) {
+  if (!valor) return null;
+  const sufixo = fimDoDia ? 'T23:59:59.999' : 'T00:00:00.000';
+  return timestampValido(`${valor}${sufixo}`);
+}
+
+function timestampCampoDataPet(pet, campo) {
+  if (campo === 'cadastro') return timestampValido(pet.criadoEm || pet.atualizadoEm);
+  if (campo === 'atualizacao') return timestampValido(pet.atualizadoEm || pet.criadoEm);
+  if (campo === 'adocao') {
+    if (normalizarStatus(pet.status) !== 'adotado') return null;
+    return timestampValido(pet.adocaoEm || pet.atualizadoEm || pet.criadoEm);
+  }
+  return null;
+}
+
+function obterPetsGestaoFiltradosOrdenados() {
+  const busca = normalizarTextoBusca(document.getElementById('filtro-admin-busca')?.value || '');
+  const statusFiltro = normalizarStatus(document.getElementById('filtro-admin-status')?.value || 'todos');
+  const ordenacao = document.getElementById('filtro-admin-ordenacao')?.value || 'atualizacao-desc';
+  const campoData = document.getElementById('filtro-admin-campo-data')?.value || 'nenhum';
+  const dataInicio = timestampDataInput(document.getElementById('filtro-admin-data-inicio')?.value || '');
+  const dataFim = timestampDataInput(document.getElementById('filtro-admin-data-fim')?.value || '', true);
+
+  const filtrados = estado.animais.filter((pet) => {
+    const statusPet = normalizarStatus(pet.status);
+    const bag = normalizarTextoBusca(
+      [
+        pet.nome,
+        pet.especie,
+        pet.porte,
+        pet.status,
+        pet.temperamento,
+        pet.id,
+        pet.adotante,
+      ].join(' '),
+    );
+
+    const bateBusca = !busca || bag.includes(busca);
+    const bateStatus = statusFiltro === 'todos' ? true : statusPet === statusFiltro;
+
+    if (!bateBusca || !bateStatus) return false;
+    if (campoData === 'nenhum' || (dataInicio === null && dataFim === null)) return true;
+
+    const dataPet = timestampCampoDataPet(pet, campoData);
+    if (dataPet === null) return false;
+    if (dataInicio !== null && dataPet < dataInicio) return false;
+    if (dataFim !== null && dataPet > dataFim) return false;
+
+    return true;
+  });
+
+  const porNome = (a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' });
+  const porCadastro = (a, b) => (timestampValido(a.criadoEm || a.atualizadoEm) || 0) - (timestampValido(b.criadoEm || b.atualizadoEm) || 0);
+  const porAtualizacao = (a, b) => (timestampValido(a.atualizadoEm || a.criadoEm) || 0) - (timestampValido(b.atualizadoEm || b.criadoEm) || 0);
+  const porAdocao = (a, b) => {
+    const adocaoA = timestampCampoDataPet(a, 'adocao');
+    const adocaoB = timestampCampoDataPet(b, 'adocao');
+    if (adocaoA === null && adocaoB === null) return porNome(a, b);
+    if (adocaoA === null) return 1;
+    if (adocaoB === null) return -1;
+    return adocaoA - adocaoB;
+  };
+
+  const ordenados = [...filtrados];
+  if (ordenacao === 'nome-asc') ordenados.sort(porNome);
+  if (ordenacao === 'nome-desc') ordenados.sort((a, b) => porNome(b, a));
+  if (ordenacao === 'cadastro-asc') ordenados.sort(porCadastro);
+  if (ordenacao === 'cadastro-desc') ordenados.sort((a, b) => porCadastro(b, a));
+  if (ordenacao === 'atualizacao-asc') ordenados.sort(porAtualizacao);
+  if (ordenacao === 'atualizacao-desc') ordenados.sort((a, b) => porAtualizacao(b, a));
+  if (ordenacao === 'adocao-asc') ordenados.sort(porAdocao);
+  if (ordenacao === 'adocao-desc') ordenados.sort((a, b) => porAdocao(b, a));
+
+  return ordenados;
+}
+
 function renderListaGestaoPets() {
   const lista = document.getElementById('lista-animais-sistema');
   const qtd = document.getElementById('qtd-cadastrados');
-  if (!lista) return; if (qtd) qtd.textContent = `${estado.animais.length} registros`;
+  if (!lista) return;
+
+  const petsFiltrados = obterPetsGestaoFiltradosOrdenados();
+  if (qtd) qtd.textContent = `${petsFiltrados.length}/${estado.animais.length} registros`;
 
   if (!estado.animais.length) {
     lista.innerHTML = `<div class="vazio">Nenhum pet cadastrado.</div>`;
     return;
   }
 
-  lista.innerHTML = estado.animais
+  if (!petsFiltrados.length) {
+    lista.innerHTML = `<div class="vazio">Nenhum pet encontrado com os filtros selecionados.</div>`;
+    return;
+  }
+
+  lista.innerHTML = petsFiltrados
     .map(
       (pet) => `
       <article class="item-gestao">
@@ -2832,6 +3019,7 @@ function renderListaGestaoPets() {
         <div>
           <h4>${pet.nome}</h4>
           <p>${pet.especie} • ${pet.idade} anos • ${pet.porte} • ${pet.status}</p>
+          <p>Cadastro: ${formatarData(pet.criadoEm || pet.atualizadoEm)} • Adoção: ${normalizarStatus(pet.status) === 'adotado' ? formatarData(pet.adocaoEm || pet.atualizadoEm || pet.criadoEm) : '—'}</p>
           <p>${pet.temperamento}</p>
           <div class="item-acoes">
             <button class="mini-btn" type="button" data-editar-pet="${pet.id}">Editar</button>
@@ -2915,14 +3103,51 @@ function renderDashboardSistema() {
 }
 
 function configurarPainelOperacao() {
-  const btnRejeitar = document.getElementById('btn-rejeitar-dados');
-  btnRejeitar?.addEventListener('click', () => {
-    const confirmou = window.confirm('ATENÇÃO: Isso apagará TODOS os dados e restaurará o banco padrão. Continuar?');
-    if (!confirmou) return;
-    Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
-    sessionStorage.clear();
-    window.location.reload();
-  });
+  const btnExportar = document.getElementById('btn-exportar-dados');
+  if (btnExportar && btnExportar.dataset.exportarConfigurado !== 'true') {
+    btnExportar.dataset.exportarConfigurado = 'true';
+    btnExportar.addEventListener('click', () => {
+      const snapshot = {
+        meta: {
+          sistema: 'Canil Prefeitura de Vilhena',
+          versao: 'backup-v1',
+          exportadoEm: new Date().toISOString(),
+          geradoPor: readSessionUser()?.login || 'sistema',
+        },
+        storageKeys: STORAGE_KEYS,
+        estado: {
+          animais: estado.animais,
+          posts: estado.posts,
+          denuncias: estado.denuncias,
+          interesses: estado.interesses,
+          usuarios: estado.usuarios,
+        },
+        localStorage: {
+          animais: readJSON(STORAGE_KEYS.animais, []),
+          posts: readJSON(STORAGE_KEYS.blog, []),
+          denuncias: readJSON(STORAGE_KEYS.denuncias, []),
+          interesses: readJSON(STORAGE_KEYS.interesses, []),
+          usuarios: readJSON(STORAGE_KEYS.usuarios, []),
+        },
+      };
+
+      const conteudo = JSON.stringify(snapshot, null, 2);
+      const blob = new Blob([conteudo], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const data = new Date();
+      const sufixo = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}_${String(data.getHours()).padStart(2, '0')}${String(data.getMinutes()).padStart(2, '0')}${String(data.getSeconds()).padStart(2, '0')}`;
+
+      link.href = url;
+      link.download = `backup-canil-vilhena-${sufixo}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setStatus('status-sistema', 'Backup exportado com sucesso.', 'ok');
+    });
+  }
 
   configurarFluxoAtendimentoSistema();
   renderPainelOperacaoListas();
@@ -2983,14 +3208,59 @@ function renderResumoFluxo(idAlvo, lista, tipo) {
   if (!alvo) return;
 
   const etapas = tipo === 'interesse' ? ETAPAS_INTERESSE : ETAPAS_DENUNCIA;
+  const idFiltroEtapa = tipo === 'interesse' ? 'filtro-interesse-status' : 'filtro-denuncia-status';
+  const valorFiltroAtual = inputValue(idFiltroEtapa);
+  const filtroPorEtapaAtivo = Boolean(valorFiltroAtual && valorFiltroAtual !== 'todos');
+  const etapaAtualFiltro = normalizarEtapaFluxo(valorFiltroAtual || etapas[0], tipo);
+
   const chips = etapas
     .map((etapa) => {
       const qtd = lista.filter((item) => normalizarEtapaFluxo(item.statusAtendimento, tipo) === etapa).length;
-      return `<span class="fluxo-chip">${rotuloEtapaFluxo(etapa)}: <strong>${qtd}</strong></span>`;
+      const ativo = filtroPorEtapaAtivo && etapaAtualFiltro === etapa;
+      return `
+        <button
+          type="button"
+          class="fluxo-chip ${ativo ? 'ativo' : ''}"
+          data-fluxo-ir-etapa="${etapa}"
+          data-fluxo-tipo="${tipo}"
+          title="Filtrar lista por ${rotuloEtapaFluxo(etapa)}"
+        >
+          ${rotuloEtapaFluxo(etapa)}: <strong>${qtd}</strong>
+        </button>
+      `;
     })
     .join('');
 
   alvo.innerHTML = `<div class="resumo-fluxo-linha">${chips}</div>`;
+
+  alvo.querySelectorAll('[data-fluxo-ir-etapa]').forEach((botao) => {
+    botao.addEventListener('click', () => {
+      const etapa = botao.getAttribute('data-fluxo-ir-etapa');
+      const tipoFluxo = botao.getAttribute('data-fluxo-tipo');
+      const idFiltro = tipoFluxo === 'interesse' ? 'filtro-interesse-status' : 'filtro-denuncia-status';
+      const filtro = document.getElementById(idFiltro);
+      if (!(filtro instanceof HTMLSelectElement) || !etapa) return;
+
+      filtro.value = etapa;
+      renderPainelOperacaoListas();
+
+      if (tipoFluxo === 'interesse') {
+        setStatus('status-interesses-admin', `Filtro aplicado: fase ${rotuloEtapaFluxo(etapa)}.`, 'ok');
+      } else {
+        setStatus('status-denuncias-admin', `Filtro aplicado: fase ${rotuloEtapaFluxo(etapa)}.`, 'ok');
+      }
+    });
+  });
+}
+
+function avancarParaProximaEtapaFluxo(item, tipo) {
+  const etapas = tipo === 'interesse' ? ETAPAS_INTERESSE : ETAPAS_DENUNCIA;
+  const atual = normalizarEtapaFluxo(item.statusAtendimento, tipo);
+  const indiceAtual = etapas.indexOf(atual);
+  if (indiceAtual < 0 || indiceAtual >= etapas.length - 1) return false;
+
+  item.statusAtendimento = etapas[indiceAtual + 1];
+  return true;
 }
 
 function renderPainelOperacaoListas() {
@@ -3032,13 +3302,18 @@ function renderListaInteresses(idAlvo) {
 
   alvo.innerHTML = filtrados
     .map(
-      (item) => `
+      (item) => {
+        const etapaAtual = normalizarEtapaFluxo(item.statusAtendimento, 'interesse');
+        const indiceAtual = ETAPAS_INTERESSE.indexOf(etapaAtual);
+        const proximaEtapa = indiceAtual >= 0 && indiceAtual < ETAPAS_INTERESSE.length - 1 ? ETAPAS_INTERESSE[indiceAtual + 1] : '';
+
+        return `
       <article class="blog-item fluxo-item">
         <div class="fluxo-topo">
           <h4>${item.nome} • ${item.petNome || 'Pet não identificado'}</h4>
           <div class="fluxo-topo-tags">
             <span class="fluxo-prioridade prioridade-${slugStatus(normalizarPrioridadeFluxo(item.prioridadeAtendimento))}">${rotuloPrioridadeFluxo(normalizarPrioridadeFluxo(item.prioridadeAtendimento))}</span>
-            <span class="fluxo-status status-${slugStatus(normalizarEtapaFluxo(item.statusAtendimento, 'interesse'))}">${rotuloEtapaFluxo(normalizarEtapaFluxo(item.statusAtendimento, 'interesse'))}</span>
+            <span class="fluxo-status status-${slugStatus(etapaAtual)}">${rotuloEtapaFluxo(etapaAtual)}</span>
           </div>
         </div>
         <p class="texto-suave">Protocolo ${item.id} • ${formatarData(item.criadoEm)} • <span class="fluxo-sla">${tempoAbertoHumano(item.criadoEm)}</span></p>
@@ -3046,15 +3321,19 @@ function renderListaInteresses(idAlvo) {
         <p>${item.mensagem}</p>
         <div class="item-acoes fluxo-acoes">
           <select class="fluxo-select" data-status-interesse="${item.id}">
-            ${ETAPAS_INTERESSE.map((etapa) => `<option value="${etapa}" ${normalizarEtapaFluxo(item.statusAtendimento, 'interesse') === etapa ? 'selected' : ''}>${rotuloEtapaFluxo(etapa)}</option>`).join('')}
+            ${ETAPAS_INTERESSE.map((etapa) => `<option value="${etapa}" ${etapaAtual === etapa ? 'selected' : ''}>${rotuloEtapaFluxo(etapa)}</option>`).join('')}
           </select>
           <select class="fluxo-select" data-prioridade-interesse="${item.id}">
             ${PRIORIDADES_FLUXO.map((prioridade) => `<option value="${prioridade}" ${normalizarPrioridadeFluxo(item.prioridadeAtendimento) === prioridade ? 'selected' : ''}>Prioridade ${rotuloPrioridadeFluxo(prioridade)}</option>`).join('')}
           </select>
+          <button class="mini-btn btn-proxima-fase" type="button" data-proxima-fase-interesse="${item.id}" ${proximaEtapa ? '' : 'disabled'}>
+            ${proximaEtapa ? `Proxima fase: ${rotuloEtapaFluxo(proximaEtapa)}` : 'Fluxo finalizado'}
+          </button>
           <button class="mini-btn remover" type="button" data-arquivar-interesse="${item.id}">Arquivar</button>
         </div>
       </article>
-    `,
+    `;
+      },
     )
     .join('');
 
@@ -3081,6 +3360,25 @@ function renderListaInteresses(idAlvo) {
       renderPainelOperacaoListas();
       renderDashboardSistema();
       setStatus('status-interesses-admin', 'Pedido arquivado.', 'ok');
+    });
+  });
+
+  alvo.querySelectorAll('[data-proxima-fase-interesse]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-proxima-fase-interesse');
+      const item = estado.interesses.find((registro) => registro.id === id);
+      if (!item) return;
+
+      const avancou = avancarParaProximaEtapaFluxo(item, 'interesse');
+      if (!avancou) {
+        setStatus('status-interesses-admin', 'Este pedido já está na etapa final do fluxo.', 'aviso');
+        return;
+      }
+
+      salvarEstado();
+      renderPainelOperacaoListas();
+      renderDashboardSistema();
+      setStatus('status-interesses-admin', `Pedido avançado para ${rotuloEtapaFluxo(item.statusAtendimento)}.`, 'ok');
     });
   });
 
@@ -3130,28 +3428,37 @@ function renderListaDenuncias(idAlvo) {
 
   alvo.innerHTML = filtradas
     .map(
-      (item) => `
+      (item) => {
+        const etapaAtual = normalizarEtapaFluxo(item.statusAtendimento, 'denuncia');
+        const indiceAtual = ETAPAS_DENUNCIA.indexOf(etapaAtual);
+        const proximaEtapa = indiceAtual >= 0 && indiceAtual < ETAPAS_DENUNCIA.length - 1 ? ETAPAS_DENUNCIA[indiceAtual + 1] : '';
+
+        return `
       <article class="blog-item fluxo-item">
         <div class="fluxo-topo">
           <h4>${item.local}</h4>
           <div class="fluxo-topo-tags">
             <span class="fluxo-prioridade prioridade-${slugStatus(normalizarPrioridadeFluxo(item.prioridadeAtendimento))}">${rotuloPrioridadeFluxo(normalizarPrioridadeFluxo(item.prioridadeAtendimento))}</span>
-            <span class="fluxo-status status-${slugStatus(normalizarEtapaFluxo(item.statusAtendimento, 'denuncia'))}">${rotuloEtapaFluxo(normalizarEtapaFluxo(item.statusAtendimento, 'denuncia'))}</span>
+            <span class="fluxo-status status-${slugStatus(etapaAtual)}">${rotuloEtapaFluxo(etapaAtual)}</span>
           </div>
         </div>
         <p>${item.descricao}</p>
         <p class="texto-suave">Contato: ${item.contato || 'Anônimo'} • ${formatarData(item.criadoEm)} • Protocolo ${item.id} • <span class="fluxo-sla">${tempoAbertoHumano(item.criadoEm)}</span></p>
         <div class="item-acoes fluxo-acoes">
           <select class="fluxo-select" data-status-denuncia="${item.id}">
-            ${ETAPAS_DENUNCIA.map((etapa) => `<option value="${etapa}" ${normalizarEtapaFluxo(item.statusAtendimento, 'denuncia') === etapa ? 'selected' : ''}>${rotuloEtapaFluxo(etapa)}</option>`).join('')}
+            ${ETAPAS_DENUNCIA.map((etapa) => `<option value="${etapa}" ${etapaAtual === etapa ? 'selected' : ''}>${rotuloEtapaFluxo(etapa)}</option>`).join('')}
           </select>
           <select class="fluxo-select" data-prioridade-denuncia="${item.id}">
             ${PRIORIDADES_FLUXO.map((prioridade) => `<option value="${prioridade}" ${normalizarPrioridadeFluxo(item.prioridadeAtendimento) === prioridade ? 'selected' : ''}>Prioridade ${rotuloPrioridadeFluxo(prioridade)}</option>`).join('')}
           </select>
+          <button class="mini-btn btn-proxima-fase" type="button" data-proxima-fase-denuncia="${item.id}" ${proximaEtapa ? '' : 'disabled'}>
+            ${proximaEtapa ? `Proxima fase: ${rotuloEtapaFluxo(proximaEtapa)}` : 'Fluxo finalizado'}
+          </button>
           <button class="mini-btn" type="button" data-resolver-denuncia="${item.id}">Marcar resolvida</button>
         </div>
       </article>
-    `,
+    `;
+      },
     )
     .join('');
 
@@ -3176,6 +3483,24 @@ function renderListaDenuncias(idAlvo) {
       salvarEstado();
       renderPainelOperacaoListas();
       setStatus('status-denuncias-admin', 'Denúncia marcada como resolvida.', 'ok');
+    });
+  });
+
+  alvo.querySelectorAll('[data-proxima-fase-denuncia]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-proxima-fase-denuncia');
+      const item = estado.denuncias.find((registro) => registro.id === id);
+      if (!item) return;
+
+      const avancou = avancarParaProximaEtapaFluxo(item, 'denuncia');
+      if (!avancou) {
+        setStatus('status-denuncias-admin', 'Esta denúncia já está na etapa final do fluxo.', 'aviso');
+        return;
+      }
+
+      salvarEstado();
+      renderPainelOperacaoListas();
+      setStatus('status-denuncias-admin', `Denúncia avançada para ${rotuloEtapaFluxo(item.statusAtendimento)}.`, 'ok');
     });
   });
 
@@ -3604,73 +3929,355 @@ function renderListaBlogSistema() {
   });
 }
 
+function obterUsuarioSessaoAtual() {
+  const sessao = readSessionUser();
+  if (!sessao) return null;
+  return estado.usuarios.find((item) => item.id === sessao.id)
+    || estado.usuarios.find((item) => item.login === sessao.login)
+    || null;
+}
+
+function usuarioEhAdmin(usuario) {
+  return String(usuario?.perfil || '').toLowerCase() === 'admin';
+}
+
+function rotuloPerfilAcesso(perfil) {
+  const mapa = {
+    admin: 'Administrador',
+    veterinario: 'Veterinario(a)',
+    cuidador: 'Cuidador(a)',
+  };
+  return mapa[String(perfil || '').toLowerCase()] || String(perfil || 'Usuário');
+}
+
+function renderUsuarioLogadoTopbar(usuario) {
+  const alvo = document.getElementById('usuario-logado');
+  if (!alvo) return;
+
+  if (!usuario) {
+    alvo.textContent = '';
+    return;
+  }
+
+  const nome = escaparHtml(usuario.nome || 'Usuário');
+  const perfilClasse = String(usuario.perfil || '').toLowerCase();
+  const perfilRotulo = escaparHtml(rotuloPerfilAcesso(usuario.perfil));
+  alvo.innerHTML = `${nome} <span class="usuario-perfil-selo perfil-${perfilClasse} selo-topbar">${perfilRotulo}</span>`;
+}
+
+function usuarioPodeEditar(usuarioSessao, usuarioAlvo) {
+  if (!usuarioSessao || !usuarioAlvo) return false;
+  if (usuarioEhAdmin(usuarioSessao)) return true;
+  return usuarioSessao.id === usuarioAlvo.id;
+}
+
+function atualizarSessaoUsuarioSeNecessario(usuarioAtualizado) {
+  const sessao = readSessionUser();
+  if (!sessao || !usuarioAtualizado) return;
+  if (sessao.id !== usuarioAtualizado.id && sessao.login !== usuarioAtualizado.login) return;
+
+  sessionStorage.setItem(SESSION_KEYS.usuario, JSON.stringify(usuarioAtualizado));
+  renderUsuarioLogadoTopbar(usuarioAtualizado);
+}
+
 function configurarUsuariosSistema() {
   const form = document.getElementById('form-usuario');
   if (!form) return;
 
+  const inputCpf = document.getElementById('usuario-cpf');
+  const inputPerfil = document.getElementById('usuario-perfil');
+  const inputSenha = document.getElementById('usuario-senha');
+  const inputConfirmar = document.getElementById('usuario-senha-confirmar');
+  const tituloForm = document.getElementById('titulo-form-usuario');
+  const btnSalvar = document.getElementById('btn-salvar-usuario');
+  const btnNovo = document.getElementById('btn-novo-usuario');
+
+  const usuarioSessao = obterUsuarioSessaoAtual();
+  const ehAdmin = usuarioEhAdmin(usuarioSessao);
+
+  const aplicarModoFormulario = (editando = false) => {
+    const idEdicao = inputValue('usuario-id-edicao');
+    const usuarioAlvo = idEdicao ? estado.usuarios.find((item) => item.id === idEdicao) : null;
+    const podeEditar = usuarioAlvo ? usuarioPodeEditar(usuarioSessao, usuarioAlvo) : ehAdmin;
+
+    if (tituloForm) {
+      tituloForm.textContent = editando ? 'Editar usuário' : 'Cadastrar novo usuário';
+    }
+    if (btnSalvar) {
+      btnSalvar.textContent = editando ? 'Salvar alterações' : 'Cadastrar usuário';
+    }
+
+    if (inputCpf instanceof HTMLInputElement) {
+      inputCpf.disabled = editando;
+    }
+
+    if (inputPerfil instanceof HTMLSelectElement) {
+      inputPerfil.disabled = editando ? !ehAdmin : !ehAdmin;
+    }
+
+    if (inputSenha instanceof HTMLInputElement && inputConfirmar instanceof HTMLInputElement) {
+      const senhaObrigatoria = !editando;
+      inputSenha.required = senhaObrigatoria;
+      inputConfirmar.required = senhaObrigatoria;
+      inputSenha.placeholder = senhaObrigatoria ? 'Mínimo 6 caracteres' : 'Preencha apenas para alterar';
+      inputConfirmar.placeholder = senhaObrigatoria ? 'Repita a senha escolhida' : 'Repita a nova senha';
+    }
+
+    form.querySelectorAll('input, select, button[type="submit"]').forEach((campo) => {
+      if (!(campo instanceof HTMLElement)) return;
+      if (campo.id === 'btn-salvar-usuario') {
+        campo.toggleAttribute('disabled', !podeEditar);
+      }
+    });
+  };
+
   const reset = () => {
     form.reset();
+    setInputValue('usuario-id-edicao', '');
+    if (inputCpf instanceof HTMLInputElement) inputCpf.disabled = false;
+    aplicarModoFormulario(false);
     setStatus('status-usuario', '', 'limpo');
   };
 
-  document.getElementById('btn-novo-usuario')?.addEventListener('click', () => {
-    reset();
+  const carregarUsuarioNoForm = (usuarioId) => {
+    const usuario = estado.usuarios.find((item) => item.id === usuarioId);
+    if (!usuario) return;
+
+    if (!usuarioPodeEditar(usuarioSessao, usuario)) {
+      setStatus('status-usuario', 'Você só pode editar sua própria conta.', 'erro');
+      return;
+    }
+
+    setInputValue('usuario-id-edicao', usuario.id);
+    setInputValue('usuario-nome', usuario.nome || '');
+    setInputValue('usuario-cpf', formatarCpf(usuario.cpf || usuario.id));
+    setInputValue('usuario-email', usuario.email || '');
+    setInputValue('usuario-contato', usuario.contato || '');
+    setInputValue('usuario-login', usuario.login || '');
+    setInputValue('usuario-perfil', usuario.perfil || '');
+    setInputValue('usuario-senha', '');
+    setInputValue('usuario-senha-confirmar', '');
+
+    aplicarModoFormulario(true);
     abrirCardSuspenso('modal-usuario');
-  });
+  };
+
+  if (btnNovo) {
+    btnNovo.hidden = !ehAdmin;
+    if (btnNovo.dataset.usuarioNovoConfigurado !== 'true') {
+      btnNovo.dataset.usuarioNovoConfigurado = 'true';
+      btnNovo.addEventListener('click', () => {
+        if (!ehAdmin) {
+          setStatus('status-usuario', 'Somente administradores podem criar usuários.', 'erro');
+          return;
+        }
+        reset();
+        abrirCardSuspenso('modal-usuario');
+      });
+    }
+  }
 
   document.getElementById('btn-cancelar-usuario')?.addEventListener('click', () => {
     reset();
     fecharCardSuspenso('modal-usuario');
   });
 
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
+  if (inputCpf instanceof HTMLInputElement && inputCpf.dataset.maskCpfConfigurado !== 'true') {
+    inputCpf.dataset.maskCpfConfigurado = 'true';
+    inputCpf.addEventListener('input', () => {
+      if (inputCpf.disabled) return;
+      const cpf = normalizarCpf(inputCpf.value).slice(0, 11);
+      if (!cpf) {
+        inputCpf.value = '';
+        return;
+      }
 
-    const nome = inputValue('usuario-nome');
-    const login = inputValue('usuario-login').toLowerCase();
-    const perfil = inputValue('usuario-perfil');
-    const senha = inputValue('usuario-senha');
-    const confirmar = inputValue('usuario-senha-confirmar');
-
-    if (!nome || !login || !perfil || !senha || !confirmar) {
-      setStatus('status-usuario', 'Preencha todos os campos do usuário.', 'erro');
-      return;
-    }
-
-    if (senha !== confirmar) {
-      setStatus('status-usuario', 'As senhas não conferem.', 'erro');
-      return;
-    }
-
-    if (senha.length < 6) {
-      setStatus('status-usuario', 'A senha precisa ter ao menos 6 caracteres.', 'erro');
-      return;
-    }
-
-    const existe = estado.usuarios.some((item) => item.login.toLowerCase() === login);
-    if (existe) {
-      setStatus('status-usuario', 'Já existe um usuário com esse login.', 'erro');
-      return;
-    }
-
-    estado.usuarios.unshift({
-      id: `usr-${crypto.randomUUID()}`,
-      nome,
-      login,
-      perfil,
-      senhaHash: encode(senha),
-      ativo: true,
-      criadoEm: new Date().toISOString(),
+      let texto = cpf;
+      if (cpf.length > 3) texto = `${cpf.slice(0, 3)}.${cpf.slice(3)}`;
+      if (cpf.length > 6) texto = `${texto.slice(0, 7)}.${texto.slice(7)}`;
+      if (cpf.length > 9) texto = `${texto.slice(0, 11)}-${texto.slice(11)}`;
+      inputCpf.value = texto;
     });
+  }
 
-    salvarEstado();
-    reset();
-    setStatus('status-usuario', 'Usuário cadastrado com sucesso.', 'ok');
-    renderListaUsuariosSistema();
-    fecharCardSuspenso('modal-usuario');
+  const filtrosUsuarios = [
+    ['filtro-usuario-busca', 'input'],
+    ['filtro-usuario-perfil', 'change'],
+    ['filtro-usuario-status', 'change'],
+    ['filtro-usuario-ordenacao', 'change'],
+  ];
+
+  filtrosUsuarios.forEach(([id, evento]) => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.usuarioFiltroConfigurado === 'true') return;
+    el.dataset.usuarioFiltroConfigurado = 'true';
+    el.addEventListener(evento, () => renderListaUsuariosSistema());
   });
 
+  if (form.dataset.usuarioSubmitConfigurado !== 'true') {
+    form.dataset.usuarioSubmitConfigurado = 'true';
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const idEdicao = inputValue('usuario-id-edicao');
+      const editando = Boolean(idEdicao);
+      const usuarioAlvo = editando ? estado.usuarios.find((item) => item.id === idEdicao) : null;
+
+      if (!editando && !ehAdmin) {
+        setStatus('status-usuario', 'Somente administradores podem criar usuários.', 'erro');
+        return;
+      }
+
+      if (editando && (!usuarioAlvo || !usuarioPodeEditar(usuarioSessao, usuarioAlvo))) {
+        setStatus('status-usuario', 'Você não tem permissão para editar este usuário.', 'erro');
+        return;
+      }
+
+      const nome = inputValue('usuario-nome');
+      const cpfNovo = normalizarCpf(inputValue('usuario-cpf'));
+      const cpfFinal = editando ? normalizarCpf(usuarioAlvo?.cpf || usuarioAlvo?.id) : cpfNovo;
+      const email = inputValue('usuario-email').toLowerCase();
+      const contato = inputValue('usuario-contato');
+      const login = inputValue('usuario-login').toLowerCase();
+      const perfilDigitado = inputValue('usuario-perfil');
+      const perfil = editando && !ehAdmin ? String(usuarioAlvo?.perfil || '') : perfilDigitado;
+      const senha = inputValue('usuario-senha');
+      const confirmar = inputValue('usuario-senha-confirmar');
+
+      if (!nome || !cpfFinal || !email || !contato || !login || !perfil) {
+        setStatus('status-usuario', 'Preencha todos os campos obrigatórios do usuário.', 'erro');
+        return;
+      }
+
+      if (!editando && !validarCpf(cpfFinal)) {
+        setStatus('status-usuario', 'Informe um CPF válido para o usuário.', 'erro');
+        return;
+      }
+
+      if (!validarEmailBasico(email)) {
+        setStatus('status-usuario', 'Informe um e-mail válido.', 'erro');
+        return;
+      }
+
+      if (senha || confirmar) {
+        if (senha !== confirmar) {
+          setStatus('status-usuario', 'As senhas não conferem.', 'erro');
+          return;
+        }
+        if (senha.length < 6) {
+          setStatus('status-usuario', 'A senha precisa ter ao menos 6 caracteres.', 'erro');
+          return;
+        }
+      } else if (!editando) {
+        setStatus('status-usuario', 'Defina uma senha para o novo usuário.', 'erro');
+        return;
+      }
+
+      const existeCpf = estado.usuarios.some(
+        (item) => normalizarCpf(item.cpf || item.id) === cpfFinal && item.id !== idEdicao,
+      );
+      if (existeCpf) {
+        setStatus('status-usuario', 'Já existe um usuário com esse CPF.', 'erro');
+        return;
+      }
+
+      const existeLogin = estado.usuarios.some(
+        (item) => String(item.login || '').toLowerCase() === login && item.id !== idEdicao,
+      );
+      if (existeLogin) {
+        setStatus('status-usuario', 'Já existe um usuário com esse login.', 'erro');
+        return;
+      }
+
+      const base = editando && usuarioAlvo ? { ...usuarioAlvo } : {};
+      const usuarioAtualizado = {
+        ...base,
+        id: cpfFinal,
+        cpf: cpfFinal,
+        nome,
+        email,
+        contato,
+        login,
+        perfil,
+        senhaHash: base.senhaHash || '',
+        ativo: editando ? Boolean(base.ativo) : true,
+        criadoEm: base.criadoEm || new Date().toISOString(),
+      };
+
+      if (senha) {
+        usuarioAtualizado.senhaHash = encode(senha);
+      }
+
+      if (!usuarioAtualizado.senhaHash) {
+        setStatus('status-usuario', 'Defina uma senha válida para o usuário.', 'erro');
+        return;
+      }
+
+      if (editando && usuarioAlvo) {
+        const idx = estado.usuarios.findIndex((item) => item.id === usuarioAlvo.id);
+        if (idx < 0) return;
+        estado.usuarios[idx] = usuarioAtualizado;
+        setStatus('status-usuario', 'Usuário atualizado com sucesso.', 'ok');
+      } else {
+        estado.usuarios.unshift(usuarioAtualizado);
+        setStatus('status-usuario', 'Usuário cadastrado com sucesso.', 'ok');
+      }
+
+      salvarEstado();
+      atualizarSessaoUsuarioSeNecessario(usuarioAtualizado);
+      renderListaUsuariosSistema();
+      reset();
+      fecharCardSuspenso('modal-usuario');
+    });
+  }
+
+  window.__sistemaUsuarios = { carregarUsuarioNoForm };
+  reset();
   renderListaUsuariosSistema();
+}
+
+function obterUsuariosFiltradosSistema() {
+  const busca = normalizarTextoBusca(inputValue('filtro-usuario-busca'));
+  const perfilFiltro = inputValue('filtro-usuario-perfil') || 'todos';
+  const statusFiltro = inputValue('filtro-usuario-status') || 'todos';
+  const ordenacao = inputValue('filtro-usuario-ordenacao') || 'recentes';
+
+  const filtrados = estado.usuarios.filter((usuario) => {
+    const bag = normalizarTextoBusca(
+      [
+        usuario.nome,
+        usuario.login,
+        usuario.email,
+        usuario.contato,
+        formatarCpf(usuario.cpf || usuario.id),
+        usuario.perfil,
+        usuario.ativo ? 'ativo' : 'inativo',
+      ].join(' '),
+    );
+
+    const bateBusca = !busca || bag.includes(busca);
+    const batePerfil = perfilFiltro === 'todos' || String(usuario.perfil || '') === perfilFiltro;
+    const bateStatus =
+      statusFiltro === 'todos'
+      || (statusFiltro === 'ativo' && Boolean(usuario.ativo))
+      || (statusFiltro === 'inativo' && !usuario.ativo);
+
+    return bateBusca && batePerfil && bateStatus;
+  });
+
+  const porNome = (a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' });
+  const porCriacao = (a, b) => new Date(a.criadoEm || 0).getTime() - new Date(b.criadoEm || 0).getTime();
+  const porAtivo = (a, b) => Number(Boolean(b.ativo)) - Number(Boolean(a.ativo));
+
+  const ordenados = [...filtrados];
+  if (ordenacao === 'recentes') ordenados.sort((a, b) => porCriacao(b, a));
+  if (ordenacao === 'antigos') ordenados.sort(porCriacao);
+  if (ordenacao === 'nome-asc') ordenados.sort(porNome);
+  if (ordenacao === 'nome-desc') ordenados.sort((a, b) => porNome(b, a));
+  if (ordenacao === 'ativos-primeiro') ordenados.sort((a, b) => porAtivo(a, b) || porCriacao(b, a));
+  if (ordenacao === 'inativos-primeiro') ordenados.sort((a, b) => porAtivo(b, a) || porCriacao(b, a));
+
+  return ordenados;
 }
 
 function renderListaUsuariosSistema() {
@@ -3678,15 +4285,30 @@ function renderListaUsuariosSistema() {
   const qtd = document.getElementById('qtd-usuarios');
   if (!lista || !qtd) return;
 
-  qtd.textContent = `${estado.usuarios.length} usuários`;
+  const usuarioSessao = obterUsuarioSessaoAtual();
+  const ehAdmin = usuarioEhAdmin(usuarioSessao);
+
+  const usuariosFiltrados = obterUsuariosFiltradosSistema();
+  qtd.textContent = `${usuariosFiltrados.length}/${estado.usuarios.length} usuários`;
 
   if (!estado.usuarios.length) {
     lista.innerHTML = `<div class="vazio">Nenhum usuário cadastrado.</div>`;
     return;
   }
 
-  lista.innerHTML = estado.usuarios
+  if (!usuariosFiltrados.length) {
+    lista.innerHTML = `<div class="vazio">Nenhum usuário encontrado com os filtros atuais.</div>`;
+    return;
+  }
+
+  lista.innerHTML = usuariosFiltrados
     .map((usuario) => {
+      const cpfExibicao = formatarCpf(usuario.cpf || usuario.id);
+      const emailExibicao = String(usuario.email || '').trim() || 'E-mail não informado';
+      const contatoExibicao = formatarContato(usuario.contato);
+      const podeEditar = usuarioPodeEditar(usuarioSessao, usuario);
+      const perfilClasse = String(usuario.perfil || '').toLowerCase();
+      const perfilRotulo = rotuloPerfilAcesso(usuario.perfil);
       const iniciais = usuario.nome
         .split(' ')
         .filter(Boolean)
@@ -3699,14 +4321,18 @@ function renderListaUsuariosSistema() {
         <article class="item-gestao">
           <div class="avatar-usuario">${iniciais || 'U'}</div>
           <div>
-            <h4>${usuario.nome}</h4>
+            <h4>${usuario.nome} <span class="usuario-perfil-selo perfil-${perfilClasse}">${perfilRotulo}</span></h4>
             <p>${usuario.login} • ${usuario.perfil} • ${usuario.ativo ? 'Ativo' : 'Inativo'}</p>
+            <p>CPF: ${cpfExibicao} • ${emailExibicao} • ${contatoExibicao}</p>
             <p class="texto-suave">Criado em ${formatarData(usuario.criadoEm)}</p>
             <div class="item-acoes">
+              ${podeEditar ? `<button class="mini-btn" type="button" data-editar-usuario="${usuario.id}">Editar</button>` : ''}
+              ${ehAdmin ? `
               <button class="mini-btn" type="button" data-toggle-usuario="${usuario.id}">
                 ${usuario.ativo ? 'Inativar' : 'Ativar'}
               </button>
               <button class="mini-btn" type="button" data-reset-usuario="${usuario.id}">Resetar senha</button>
+              ` : ''}
             </div>
           </div>
         </article>
@@ -3714,8 +4340,19 @@ function renderListaUsuariosSistema() {
     })
     .join('');
 
+  lista.querySelectorAll('[data-editar-usuario]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-editar-usuario');
+      window.__sistemaUsuarios?.carregarUsuarioNoForm(id);
+    });
+  });
+
   lista.querySelectorAll('[data-toggle-usuario]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (!ehAdmin) {
+        setStatus('status-usuario', 'Somente administradores podem ativar ou inativar usuários.', 'erro');
+        return;
+      }
       const id = btn.getAttribute('data-toggle-usuario');
       const usuario = estado.usuarios.find((item) => item.id === id);
       if (!usuario) return;
@@ -3723,18 +4360,24 @@ function renderListaUsuariosSistema() {
       usuario.ativo = !usuario.ativo;
       salvarEstado();
       renderListaUsuariosSistema();
+      atualizarSessaoUsuarioSeNecessario(usuario);
+      setStatus('status-usuario', `Usuário ${usuario.ativo ? 'ativado' : 'inativado'} com sucesso.`, 'ok');
     });
   });
 
   lista.querySelectorAll('[data-reset-usuario]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (!ehAdmin) {
+        setStatus('status-usuario', 'Somente administradores podem resetar senhas.', 'erro');
+        return;
+      }
       const id = btn.getAttribute('data-reset-usuario');
       const usuario = estado.usuarios.find((item) => item.id === id);
       if (!usuario) return;
 
       usuario.senhaHash = encode('123456');
       salvarEstado();
-      setStatus('status-usuario', `Senha de ${usuario.login} redefinida para 123456.`, 'ok');
+      setStatus('status-usuario', `Senha de ${usuario.login} (${formatarCpf(usuario.cpf || usuario.id)}) redefinida para 123456.`, 'ok');
     });
   });
 }

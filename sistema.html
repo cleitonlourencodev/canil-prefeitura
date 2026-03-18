@@ -125,6 +125,24 @@
                 <option value="em tratamento">Em Tratamento</option>
                 <option value="adotado">Adotado</option>
               </select>
+              <select id="filtro-admin-ordenacao">
+                <option value="atualizacao-desc">Última atualização (mais recente)</option>
+                <option value="atualizacao-asc">Última atualização (mais antiga)</option>
+                <option value="nome-asc">Nome (A-Z)</option>
+                <option value="nome-desc">Nome (Z-A)</option>
+                <option value="cadastro-desc">Cadastro (mais recente)</option>
+                <option value="cadastro-asc">Cadastro (mais antigo)</option>
+                <option value="adocao-desc">Adoção (mais recente)</option>
+                <option value="adocao-asc">Adoção (mais antiga)</option>
+              </select>
+              <select id="filtro-admin-campo-data">
+                <option value="nenhum">Sem filtro por data</option>
+                <option value="cadastro">Data de cadastro</option>
+                <option value="adocao">Data de adoção</option>
+                <option value="atualizacao">Última atualização</option>
+              </select>
+              <input type="date" id="filtro-admin-data-inicio" aria-label="Data inicial">
+              <input type="date" id="filtro-admin-data-fim" aria-label="Data final">
             </div>
 
             <!-- Lista de animais ---renderizado via JS -->
@@ -475,6 +493,29 @@
 
             <div id="status-usuario" aria-live="polite"></div>
 
+            <div class="filtros painel filtros-admin">
+              <input type="text" id="filtro-usuario-busca" placeholder="Buscar por nome, login, e-mail, contato, CPF ou perfil...">
+              <select id="filtro-usuario-perfil">
+                <option value="todos">Todos os perfis</option>
+                <option value="admin">Administrador</option>
+                <option value="veterinario">Veterinario(a)</option>
+                <option value="cuidador">Cuidador(a)</option>
+              </select>
+              <select id="filtro-usuario-status">
+                <option value="todos">Todos os status</option>
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+              </select>
+              <select id="filtro-usuario-ordenacao">
+                <option value="recentes">Mais recentes</option>
+                <option value="antigos">Mais antigos</option>
+                <option value="nome-asc">Nome (A-Z)</option>
+                <option value="nome-desc">Nome (Z-A)</option>
+                <option value="ativos-primeiro">Ativos primeiro</option>
+                <option value="inativos-primeiro">Inativos primeiro</option>
+              </select>
+            </div>
+
             <!-- Lista de usuários (renderizada via JS) -->
             <div id="lista-usuarios" class="lista-gap"></div>
 
@@ -482,13 +523,26 @@
             <div id="modal-usuario" class="modal-suspenso" hidden>
               <div class="painel form-secao card-suspenso">
                 <div class="card-suspenso-topo">
-                  <h3 class="titulo-form-secao">Cadastrar novo usuário</h3>
+                  <h3 id="titulo-form-usuario" class="titulo-form-secao">Cadastrar novo usuário</h3>
                   <button type="button" class="modal-fechar" data-fechar-modal="modal-usuario" aria-label="Fechar cadastro de usuário">&times;</button>
                 </div>
                 <form id="form-usuario" class="form-grid">
+                <input type="hidden" id="usuario-id-edicao">
                 <div>
                   <label class="campo-label">Nome completo *</label>
                   <input type="text" id="usuario-nome" placeholder="Nome do funcionário" required>
+                </div>
+                <div>
+                  <label class="campo-label">CPF (ID do usuário) *</label>
+                  <input type="text" id="usuario-cpf" placeholder="000.000.000-00" maxlength="14" required autocomplete="off">
+                </div>
+                <div>
+                  <label class="campo-label">E-mail *</label>
+                  <input type="email" id="usuario-email" placeholder="nome@prefeitura.gov.br" required autocomplete="off">
+                </div>
+                <div>
+                  <label class="campo-label">Contato *</label>
+                  <input type="text" id="usuario-contato" placeholder="(69) 99999-9999" required autocomplete="off">
                 </div>
                 <div>
                   <label class="campo-label">Login de Acesso *</label>
@@ -512,7 +566,7 @@
                   <input type="password" id="usuario-senha-confirmar" placeholder="Repita a senha escolhida" required autocomplete="new-password">
                 </div>
                 <div class="campo-full form-acoes">
-                  <button type="submit" class="btn btn-principal">Cadastrar usuário</button>
+                  <button type="submit" id="btn-salvar-usuario" class="btn btn-principal">Cadastrar usuário</button>
                   <button type="button" id="btn-cancelar-usuario" class="btn btn-secundario">Cancelar</button>
                 </div>
                 </form>
@@ -524,9 +578,10 @@
           <div id="tab-config" class="sistema-tab">
             <h2 class="titulo-tab">Configurações do sistema</h2>
             <div class="painel perigo-box">
-              <h3 class="perigo-titulo">Zona de Perigo</h3>
-              <p class="texto-suave texto-intro">Restaurar o banco de dados irá <strong>apagar TODOS os dados atuais</strong> (animais, posts, usuários etc.) e recarregar apenas os registros iniciais padrão. Esta ação não pode ser desfeita.</p>
-              <button id="btn-rejeitar-dados" class="btn btn-danger">Restaurar Banco de Dados</button>
+              <h3 class="perigo-titulo">Backup e Exportação</h3>
+              <p class="texto-suave texto-intro">Baixe uma cópia completa do banco de dados atual em formato JSON, incluindo cadastros, histórico e referências de imagens usadas no sistema.</p>
+              <button id="btn-exportar-dados" class="btn btn-principal">Exportar banco de dados completo</button>
+              <p class="texto-suave mt-sm">Arquivo recomendado para backup e migração entre dispositivos.</p>
             </div>
           </div>
 
