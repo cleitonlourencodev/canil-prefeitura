@@ -819,7 +819,118 @@ const testemunhoSeeds = {
   ],
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+const SUPABASE_STORAGE_TABLE = 'app_storage';
+const VOLATILE_PERSIST_KEYS = new Set([
+  'canil_lembrar_login',
+  'canil_lembrar_senha',
+]);
+
+const persistentStorageCache = new Map();
+const sessionStorageCache = new Map();
+let supabaseClient = null;
+
+function getSupabaseConfig() {
+  return window.CANIL_SUPABASE_CONFIG || null;
+}
+
+function canUseSupabase() {
+  const config = getSupabaseConfig();
+  return Boolean(
+    config
+    && typeof config.url === 'string'
+    && typeof config.anonKey === 'string'
+    && window.supabase
+    && typeof window.supabase.createClient === 'function',
+  );
+}
+
+const persistentStorage = {
+  async init() {
+    if (!canUseSupabase()) {
+      console.warn('[Canil] Supabase não configurado. Persistência remota desativada.');
+      return;
+    }
+
+    const config = getSupabaseConfig();
+    supabaseClient = window.supabase.createClient(config.url, config.anonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const { data, error } = await supabaseClient
+      .from(SUPABASE_STORAGE_TABLE)
+      .select('chave, valor');
+
+    if (error) {
+      console.error('[Canil] Falha ao carregar dados do Supabase:', error.message);
+      return;
+    }
+
+    (data || []).forEach((item) => {
+      persistentStorageCache.set(item.chave, String(item.valor ?? ''));
+    });
+  },
+
+  getItem(chave) {
+    const key = String(chave || '');
+    return persistentStorageCache.has(key) ? persistentStorageCache.get(key) : null;
+  },
+
+  setItem(chave, valor) {
+    const key = String(chave || '');
+    const value = String(valor ?? '');
+    persistentStorageCache.set(key, value);
+
+    if (!supabaseClient || VOLATILE_PERSIST_KEYS.has(key)) return;
+
+    void supabaseClient
+      .from(SUPABASE_STORAGE_TABLE)
+      .upsert({ chave: key, valor: value }, { onConflict: 'chave' })
+      .then(({ error }) => {
+        if (error) {
+          console.error('[Canil] Falha ao salvar chave no Supabase:', key, error.message);
+        }
+      });
+  },
+
+  removeItem(chave) {
+    const key = String(chave || '');
+    persistentStorageCache.delete(key);
+
+    if (!supabaseClient || VOLATILE_PERSIST_KEYS.has(key)) return;
+
+    void supabaseClient
+      .from(SUPABASE_STORAGE_TABLE)
+      .delete()
+      .eq('chave', key)
+      .then(({ error }) => {
+        if (error) {
+          console.error('[Canil] Falha ao remover chave do Supabase:', key, error.message);
+        }
+      });
+  },
+};
+
+const sessionStore = {
+  getItem(chave) {
+    const key = String(chave || '');
+    return sessionStorageCache.has(key) ? sessionStorageCache.get(key) : null;
+  },
+
+  setItem(chave, valor) {
+    const key = String(chave || '');
+    sessionStorageCache.set(key, String(valor ?? ''));
+  },
+
+  removeItem(chave) {
+    sessionStorageCache.delete(String(chave || ''));
+  },
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await persistentStorage.init();
   bootstrapDados();
   carregarEstado();
   garantirDadosBase();
@@ -967,23 +1078,23 @@ function decode(texto) {
 }
 
 function bootstrapDados() {
-  if (!localStorage.getItem(STORAGE_KEYS.animais)) {
-    localStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(seeds.animais));
+  if (!persistentStorage.getItem(STORAGE_KEYS.animais)) {
+    persistentStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(seeds.animais));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.blog)) {
-    localStorage.setItem(STORAGE_KEYS.blog, JSON.stringify(seeds.posts));
+  if (!persistentStorage.getItem(STORAGE_KEYS.blog)) {
+    persistentStorage.setItem(STORAGE_KEYS.blog, JSON.stringify(seeds.posts));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.denuncias)) {
-    localStorage.setItem(STORAGE_KEYS.denuncias, JSON.stringify([]));
+  if (!persistentStorage.getItem(STORAGE_KEYS.denuncias)) {
+    persistentStorage.setItem(STORAGE_KEYS.denuncias, JSON.stringify([]));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.interesses)) {
-    localStorage.setItem(STORAGE_KEYS.interesses, JSON.stringify([]));
+  if (!persistentStorage.getItem(STORAGE_KEYS.interesses)) {
+    persistentStorage.setItem(STORAGE_KEYS.interesses, JSON.stringify([]));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.usuarios)) {
-    localStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(seeds.usuarios));
+  if (!persistentStorage.getItem(STORAGE_KEYS.usuarios)) {
+    persistentStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(seeds.usuarios));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.auditoria)) {
-    localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify([]));
+  if (!persistentStorage.getItem(STORAGE_KEYS.auditoria)) {
+    persistentStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify([]));
   }
 }
 
@@ -1012,7 +1123,7 @@ function normalizarEspeciePets() {
   });
   
   if (houveMudanca) {
-    localStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(estado.animais));
+    persistentStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(estado.animais));
   }
 }
 
@@ -1028,7 +1139,7 @@ function garantirDadosBase() {
   };
 
   // Sempre garante que usuarios-seed estejam com ativo/senhaHash/perfil corretos
-  // (corrige dados corrompidos no localStorage de sessoes anteriores)
+  // (corrige dados corrompidos no persistentStorage de sessoes anteriores)
   let usuariosSeedAlterado = false;
   seeds.usuarios.forEach((seedUser) => {
     const idx = estado.usuarios.findIndex((u) => u.id === seedUser.id);
@@ -1044,18 +1155,18 @@ function garantirDadosBase() {
     }
   });
   if (usuariosSeedAlterado) {
-    localStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(estado.usuarios));
+    persistentStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(estado.usuarios));
   }
 
-  const jaMigrado = localStorage.getItem(STORAGE_KEYS.seedUpgradeV2) === '1';
-  const jaMigradoV3 = localStorage.getItem(STORAGE_KEYS.seedUpgradeV3) === '1';
-  const jaMigradoV4 = localStorage.getItem(STORAGE_KEYS.seedUpgradeV4) === '1';
+  const jaMigrado = persistentStorage.getItem(STORAGE_KEYS.seedUpgradeV2) === '1';
+  const jaMigradoV3 = persistentStorage.getItem(STORAGE_KEYS.seedUpgradeV3) === '1';
+  const jaMigradoV4 = persistentStorage.getItem(STORAGE_KEYS.seedUpgradeV4) === '1';
 
   if (!jaMigrado) {
     estado.animais = mergeById(estado.animais, [...seeds.animais, ...extraSeeds.animais]);
     estado.posts = mergeById(estado.posts, [...seeds.posts, ...extraSeeds.posts]);
     estado.usuarios = mergeById(estado.usuarios, seeds.usuarios);
-    localStorage.setItem(STORAGE_KEYS.seedUpgradeV2, '1');
+    persistentStorage.setItem(STORAGE_KEYS.seedUpgradeV2, '1');
   }
 
   if (!jaMigradoV3) {
@@ -1063,12 +1174,12 @@ function garantirDadosBase() {
     estado.posts = mergeById(estado.posts, flowSeeds.posts);
     estado.interesses = mergeById(estado.interesses, flowSeeds.interesses);
     estado.denuncias = mergeById(estado.denuncias, flowSeeds.denuncias);
-    localStorage.setItem(STORAGE_KEYS.seedUpgradeV3, '1');
+    persistentStorage.setItem(STORAGE_KEYS.seedUpgradeV3, '1');
   }
 
   if (!jaMigradoV4) {
     estado.animais = mergeById(estado.animais, testemunhoSeeds.animais);
-    localStorage.setItem(STORAGE_KEYS.seedUpgradeV4, '1');
+    persistentStorage.setItem(STORAGE_KEYS.seedUpgradeV4, '1');
   }
 
   estado.posts = estado.posts.map((post) => ({
@@ -1123,17 +1234,17 @@ function garantirDadosBase() {
 }
 
 function salvarEstado() {
-  localStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(estado.animais));
-  localStorage.setItem(STORAGE_KEYS.blog, JSON.stringify(estado.posts));
-  localStorage.setItem(STORAGE_KEYS.denuncias, JSON.stringify(estado.denuncias));
-  localStorage.setItem(STORAGE_KEYS.interesses, JSON.stringify(estado.interesses));
-  localStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(estado.usuarios));
-  localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
+  persistentStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(estado.animais));
+  persistentStorage.setItem(STORAGE_KEYS.blog, JSON.stringify(estado.posts));
+  persistentStorage.setItem(STORAGE_KEYS.denuncias, JSON.stringify(estado.denuncias));
+  persistentStorage.setItem(STORAGE_KEYS.interesses, JSON.stringify(estado.interesses));
+  persistentStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(estado.usuarios));
+  persistentStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
 }
 
 function readJSON(chave, padrao) {
   try {
-    return JSON.parse(localStorage.getItem(chave) ?? JSON.stringify(padrao));
+    return JSON.parse(persistentStorage.getItem(chave) ?? JSON.stringify(padrao));
   } catch {
     return padrao;
   }
@@ -1213,7 +1324,7 @@ function registrarAuditoria({ acao = '', entidade = '', alvoId = '', detalhes = 
     estado.auditoria = estado.auditoria.slice(0, 1200);
   }
 
-  localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
+  persistentStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
   renderListaAuditoriaSistema();
 }
 
@@ -1594,8 +1705,8 @@ function renderCarousel() {
   const SEGUNDOS_EM_UMA_SEMANA = 604800000; // 7 dias em ms
   const hoje = new Date().getTime();
 
-  let carouselInfo = JSON.parse(localStorage.getItem('pv_semana_pets_info')) || null;
-  let jaMostrados = JSON.parse(localStorage.getItem('pv_pets_ja_mostrados')) || [];
+  let carouselInfo = JSON.parse(persistentStorage.getItem('pv_semana_pets_info')) || null;
+  let jaMostrados = JSON.parse(persistentStorage.getItem('pv_pets_ja_mostrados')) || [];
   
   // Limpa o array de já mostrados de IDs que não estão mais ativos
   const activeIds = activePets.map(p => p.id);
@@ -1624,8 +1735,8 @@ function renderCarousel() {
       
       jaMostrados.push(...idsSelecionados);
       
-      localStorage.setItem('pv_semana_pets_info', JSON.stringify(carouselInfo));
-      localStorage.setItem('pv_pets_ja_mostrados', JSON.stringify(jaMostrados));
+      persistentStorage.setItem('pv_semana_pets_info', JSON.stringify(carouselInfo));
+      persistentStorage.setItem('pv_pets_ja_mostrados', JSON.stringify(jaMostrados));
   }
   
   const pets = carouselInfo.petIds.map(id => activePets.find(p => p.id === id)).filter(Boolean);
@@ -2238,8 +2349,8 @@ function configurarLoginSistema() {
   const btnLogout = document.getElementById('btn-logout');
 
   // Preenche campos se "lembrar" estava marcado anteriormente
-  const loginSalvo = localStorage.getItem('canil_lembrar_login');
-  const senhaSalva = localStorage.getItem('canil_lembrar_senha');
+  const loginSalvo = persistentStorage.getItem('canil_lembrar_login');
+  const senhaSalva = persistentStorage.getItem('canil_lembrar_senha');
   if (loginSalvo && senhaSalva) {
     const inputLogin = document.getElementById('login-usuario');
     const inputSenha = document.getElementById('login-senha');
@@ -2264,14 +2375,14 @@ function configurarLoginSistema() {
 
     // Gerencia o "lembrar login"
     if (lembrar) {
-      localStorage.setItem('canil_lembrar_login', login);
-      localStorage.setItem('canil_lembrar_senha', encode(senha));
+      persistentStorage.setItem('canil_lembrar_login', login);
+      persistentStorage.setItem('canil_lembrar_senha', encode(senha));
     } else {
-      localStorage.removeItem('canil_lembrar_login');
-      localStorage.removeItem('canil_lembrar_senha');
+      persistentStorage.removeItem('canil_lembrar_login');
+      persistentStorage.removeItem('canil_lembrar_senha');
     }
 
-    sessionStorage.setItem(SESSION_KEYS.usuario, JSON.stringify(usuario));
+    sessionStore.setItem(SESSION_KEYS.usuario, JSON.stringify(usuario));
     registrarAuditoria({
       acao: 'login',
       entidade: 'sistema',
@@ -2292,14 +2403,14 @@ function configurarLoginSistema() {
         detalhes: 'Logout realizado no sistema interno.',
       });
     }
-    sessionStorage.removeItem(SESSION_KEYS.usuario);
-    sessionStorage.removeItem(SESSION_KEYS.abaSistema);
+    sessionStore.removeItem(SESSION_KEYS.usuario);
+    sessionStore.removeItem(SESSION_KEYS.abaSistema);
     mostrarAreaSistema(false);
     renderUsuarioLogadoTopbar(null);
     if (btnLogout) { btnLogout.style.display = 'none'; }
     const formLogin = document.getElementById('form-login-sistema');
     // Só limpa os campos se não estava lembrando
-    if (!localStorage.getItem('canil_lembrar_login')) {
+    if (!persistentStorage.getItem('canil_lembrar_login')) {
       formLogin?.reset();
     }
   });
@@ -2369,7 +2480,7 @@ function configurarMenuLateralSistema() {
       return;
     }
 
-    const salvo = sessionStorage.getItem(SESSION_KEYS.menuSistemaColapsado) === '1';
+    const salvo = sessionStore.getItem(SESSION_KEYS.menuSistemaColapsado) === '1';
     aplicarEstado(salvo);
   };
 
@@ -2380,7 +2491,7 @@ function configurarMenuLateralSistema() {
 
       const ficouColapsado = !area.classList.contains('menu-colapsado');
       aplicarEstado(ficouColapsado);
-      sessionStorage.setItem(SESSION_KEYS.menuSistemaColapsado, ficouColapsado ? '1' : '0');
+      sessionStore.setItem(SESSION_KEYS.menuSistemaColapsado, ficouColapsado ? '1' : '0');
     });
   }
 
@@ -2508,15 +2619,15 @@ function configurarTabsSistema() {
     return aba;
   };
 
-  const abaSalva = resolverAbaPermitida(sessionStorage.getItem(SESSION_KEYS.abaSistema) || 'tab-dashboard');
+  const abaSalva = resolverAbaPermitida(sessionStore.getItem(SESSION_KEYS.abaSistema) || 'tab-dashboard');
   ativarAbaSistema(abaSalva);
-  sessionStorage.setItem(SESSION_KEYS.abaSistema, abaSalva);
+  sessionStore.setItem(SESSION_KEYS.abaSistema, abaSalva);
 
   botoes.forEach((botao) => {
     botao.addEventListener('click', () => {
       const aba = resolverAbaPermitida(botao.getAttribute('data-target') || 'tab-dashboard');
       ativarAbaSistema(aba);
-      sessionStorage.setItem(SESSION_KEYS.abaSistema, aba);
+      sessionStore.setItem(SESSION_KEYS.abaSistema, aba);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   });
@@ -3669,7 +3780,7 @@ function configurarPainelOperacao() {
           usuarios: estado.usuarios,
           auditoria: estado.auditoria,
         },
-        localStorage: {
+        persistentStorage: {
           animais: readJSON(STORAGE_KEYS.animais, []),
           posts: readJSON(STORAGE_KEYS.blog, []),
           denuncias: readJSON(STORAGE_KEYS.denuncias, []),
@@ -4130,15 +4241,15 @@ function configurarHistoriasAdocaoSistema() {
   }
 
   const botoesAba = [...document.querySelectorAll('[data-historias-aba]')];
-  if (!sessionStorage.getItem(SESSION_KEYS.historiasAba)) {
-    sessionStorage.setItem(SESSION_KEYS.historiasAba, 'nao-postados');
+  if (!sessionStore.getItem(SESSION_KEYS.historiasAba)) {
+    sessionStore.setItem(SESSION_KEYS.historiasAba, 'nao-postados');
   }
   botoesAba.forEach((botao) => {
     if (!(botao instanceof HTMLButtonElement) || botao.dataset.historiasAbaConfigurado === 'true') return;
     botao.dataset.historiasAbaConfigurado = 'true';
     botao.addEventListener('click', () => {
       const aba = botao.getAttribute('data-historias-aba') || 'nao-postados';
-      sessionStorage.setItem(SESSION_KEYS.historiasAba, aba);
+      sessionStore.setItem(SESSION_KEYS.historiasAba, aba);
       renderListaHistoriasAdocaoSistema();
     });
   });
@@ -4151,7 +4262,7 @@ function renderListaHistoriasAdocaoSistema() {
   const badge = document.getElementById('qtd-historias');
   if (!lista) return;
 
-  const abaAtual = sessionStorage.getItem(SESSION_KEYS.historiasAba) || 'nao-postados';
+  const abaAtual = sessionStore.getItem(SESSION_KEYS.historiasAba) || 'nao-postados';
   const ehAbaPostados = abaAtual === 'postados';
 
   document.querySelectorAll('[data-historias-aba]').forEach((el) => {
@@ -4620,7 +4731,7 @@ function atualizarSessaoUsuarioSeNecessario(usuarioAtualizado) {
   if (!sessao || !usuarioAtualizado) return;
   if (sessao.id !== usuarioAtualizado.id && sessao.login !== usuarioAtualizado.login) return;
 
-  sessionStorage.setItem(SESSION_KEYS.usuario, JSON.stringify(usuarioAtualizado));
+  sessionStore.setItem(SESSION_KEYS.usuario, JSON.stringify(usuarioAtualizado));
   renderUsuarioLogadoTopbar(usuarioAtualizado);
 }
 
@@ -5108,7 +5219,7 @@ function configurarAuditoriaSistema() {
 
       estado.auditoria = [];
       auditoriaPaginaAtual = 1;
-      localStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
+      persistentStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify(estado.auditoria));
       registrarAuditoria({
         acao: 'limpar-logs',
         entidade: 'auditoria',
@@ -5223,7 +5334,7 @@ function renderListaAuditoriaSistema() {
 
 function readSessionUser() {
   try {
-    const bruto = sessionStorage.getItem(SESSION_KEYS.usuario);
+    const bruto = sessionStore.getItem(SESSION_KEYS.usuario);
     if (!bruto) return null;
     return JSON.parse(bruto);
   } catch {
@@ -5301,7 +5412,7 @@ function renderCarousel12() {
   const SEGUNDOS_EM_UMA_SEMANA = 604800000;
   const hoje = new Date().getTime();
 
-  let carouselInfo = JSON.parse(localStorage.getItem("pv_semana_pets_info_12")) || null; let jaMostrados = JSON.parse(localStorage.getItem("pv_pets_ja_mostrados_12")) || [];
+  let carouselInfo = JSON.parse(persistentStorage.getItem("pv_semana_pets_info_12")) || null; let jaMostrados = JSON.parse(persistentStorage.getItem("pv_pets_ja_mostrados_12")) || [];
   
   const activeIds = activePets.map(p => p.id);
   jaMostrados = jaMostrados.filter(id => activeIds.includes(id));
@@ -5325,8 +5436,8 @@ function renderCarousel12() {
       };
       jaMostrados.push(...idsSelecionados);
       
-      localStorage.setItem("pv_semana_pets_info_12", JSON.stringify(carouselInfo));
-      localStorage.setItem("pv_pets_ja_mostrados_12", JSON.stringify(jaMostrados));
+      persistentStorage.setItem("pv_semana_pets_info_12", JSON.stringify(carouselInfo));
+      persistentStorage.setItem("pv_pets_ja_mostrados_12", JSON.stringify(jaMostrados));
   }
 
   const pets = carouselInfo.petIds.map(id => activePets.find(p => p.id === id)).filter(Boolean);
@@ -5478,6 +5589,7 @@ window.addEventListener('resize', () => {
   atualizarSlider12Transform(slider12TotalPets);
   atualizarSlider12Controles(slider12TotalPets);
 });
+
 
 
 

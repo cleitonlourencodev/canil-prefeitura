@@ -36,7 +36,7 @@ O botão **Funcionários** abre o sistema em nova guia.
 
 ### Sistema de funcionários
 
-- Login local provisório (sem backend), com sessão por aba.
+- Login interno com persistência remota via Supabase (frontend).
 - Cadastro, edição e exclusão de animais com ficha completa.
 - Galeria de fotos com definição de perfil e ajuste de enquadramento (posição X/Y).
 - Editor da foto de perfil (zoom, brilho, contraste e saturação) com presets.
@@ -57,13 +57,42 @@ Usuário adicional para testes:
 
 ## Persistência de dados
 
-As informações são salvas no navegador com `localStorage`:
+As informações agora são persistidas no Supabase (tabela `public.app_storage`) por meio do arquivo `supabase-config.js`.
+
+Arquivos SQL separados para criar estrutura e políticas:
+
+- `sql/01_schema.sql`
+- `sql/02_policies.sql`
+- `sql/03_seed_inicial.sql`
+
+Dados cobertos pelo storage remoto:
 
 - animais cadastrados,
 - posts do blog,
 - denúncias registradas,
 - interesses de adoção,
 - usuários internos.
+
+Observação: a sessão ativa da aba do sistema é mantida apenas em memória da página.
+
+## Supabase (setup rápido)
+
+1. Crie um projeto no Supabase.
+2. Abra o SQL Editor e execute, nesta ordem:
+	- `sql/01_schema.sql`
+	- `sql/02_policies.sql`
+	- `sql/03_seed_inicial.sql`
+3. Edite `supabase-config.js` com:
+	- `url` do projeto
+	- `anonKey` do projeto
+
+## Deploy com GitHub + Vercel
+
+1. Suba este repositório para o GitHub.
+2. No Vercel, clique em **Add New Project** e importe o repositório.
+3. Framework preset: **Other** (site estático).
+4. Deploy.
+5. Após qualquer alteração, faça push na branch `main` para novo deploy automático.
 
 ## Como executar
 
