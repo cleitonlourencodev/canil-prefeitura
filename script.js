@@ -12,6 +12,7 @@
 
 const SESSION_KEYS = {
   usuario: 'pv_sessao_usuario',
+  authToken: 'pv_sessao_token',
   abaSistema: 'pv_sistema_aba_ativa',
   menuSistemaColapsado: 'pv_sistema_menu_colapsado',
   historiasAba: 'pv_sistema_historias_aba',
@@ -279,26 +280,6 @@ const seeds = {
         saturacao: 106,
       },
       atualizadoEm: '2026-02-05T11:05:00.000Z',
-    },
-  ],
-  usuarios: [
-    {
-      id: 'usr-admin',
-      nome: 'Administrador do Sistema',
-      login: 'admin',
-      senhaHash: encode('admin123'),
-      perfil: 'admin',
-      ativo: true,
-      criadoEm: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'usr-vet',
-      nome: 'Dra. Paula Mendes',
-      login: 'paula.vet',
-      senhaHash: encode('vet12345'),
-      perfil: 'veterinario',
-      ativo: true,
-      criadoEm: '2026-01-15T00:00:00.000Z',
     },
   ],
 };
@@ -819,58 +800,65 @@ const testemunhoSeeds = {
   ],
 };
 
-const SUPABASE_STORAGE_TABLE = 'app_storage';
+const STORAGE_API_ENDPOINT = '/api/storage';
+const UPLOAD_API_ENDPOINT = '/api/upload';
+const AUTH_API_ENDPOINT = '/api/login';
+const BOOTSTRAP_API_ENDPOINT = '/api/bootstrap';
 const VOLATILE_PERSIST_KEYS = new Set([
   'canil_lembrar_login',
-  'canil_lembrar_senha',
 ]);
 
 const persistentStorageCache = new Map();
 const sessionStorageCache = new Map();
-let supabaseClient = null;
 
-function getSupabaseConfig() {
-  return window.CANIL_SUPABASE_CONFIG || null;
+function arquivoEhImagem(arquivo) {
+  const nome = String(arquivo?.name || '').toLowerCase();
+  const extensaoEhImagem = /\.(png|jpe?g|gif|webp|bmp|svg|avif|tiff?|ico|heic|heif|jfif|jpe|jif|jfi)$/i.test(nome);
+  const tipoEhImagem = String(arquivo?.type || '').startsWith('image/');
+  return Boolean(arquivo && (tipoEhImagem || extensaoEhImagem));
 }
 
-function canUseSupabase() {
-  const config = getSupabaseConfig();
-  return Boolean(
-    config
-    && typeof config.url === 'string'
-    && typeof config.anonKey === 'string'
-    && window.supabase
-    && typeof window.supabase.createClient === 'function',
-  );
+async function uploadArquivoOriginal(arquivo, folder) {
+  if (!arquivoEhImagem(arquivo)) {
+    throw new Error('Selecione apenas arquivos de imagem.');
+  }
+
+  const token = sessionStore.getItem(SESSION_KEYS.authToken) || '';
+  const resposta = await fetch(`${UPLOAD_API_ENDPOINT}?folder=${encodeURIComponent(folder)}`, {
+    method: 'POST',
+    headers: {
+      'x-file-name': encodeURIComponent(String(arquivo.name || 'imagem')),
+      'x-file-type': String(arquivo.type || 'application/octet-stream'),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: arquivo,
+  });
+
+  const payload = await resposta.json().catch(() => ({}));
+  if (!resposta.ok || !payload.publicUrl) {
+    throw new Error(payload.error || 'Falha ao enviar arquivo.');
+  }
+
+  return payload.publicUrl;
 }
 
 const persistentStorage = {
   async init() {
-    if (!canUseSupabase()) {
-      console.warn('[Canil] Supabase não configurado. Persistência remota desativada.');
+    try {
+      const resposta = await fetch(STORAGE_API_ENDPOINT, { method: 'GET' });
+      const payload = await resposta.json().catch(() => ({}));
+
+      if (!resposta.ok) {
+        throw new Error(payload.error || 'Falha ao carregar dados remotos.');
+      }
+
+      Object.entries(payload.items || {}).forEach(([chave, valor]) => {
+        persistentStorageCache.set(chave, String(valor ?? ''));
+      });
+    } catch (error) {
+      console.error('[Canil] Falha ao carregar dados remotos:', error.message || error);
       return;
     }
-
-    const config = getSupabaseConfig();
-    supabaseClient = window.supabase.createClient(config.url, config.anonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-
-    const { data, error } = await supabaseClient
-      .from(SUPABASE_STORAGE_TABLE)
-      .select('chave, valor');
-
-    if (error) {
-      console.error('[Canil] Falha ao carregar dados do Supabase:', error.message);
-      return;
-    }
-
-    (data || []).forEach((item) => {
-      persistentStorageCache.set(item.chave, String(item.valor ?? ''));
-    });
   },
 
   getItem(chave) {
@@ -883,15 +871,25 @@ const persistentStorage = {
     const value = String(valor ?? '');
     persistentStorageCache.set(key, value);
 
-    if (!supabaseClient || VOLATILE_PERSIST_KEYS.has(key)) return;
+    if (VOLATILE_PERSIST_KEYS.has(key)) return;
 
-    void supabaseClient
-      .from(SUPABASE_STORAGE_TABLE)
-      .upsert({ chave: key, valor: value }, { onConflict: 'chave' })
-      .then(({ error }) => {
-        if (error) {
-          console.error('[Canil] Falha ao salvar chave no Supabase:', key, error.message);
+    const token = sessionStore.getItem(SESSION_KEYS.authToken) || '';
+    void fetch(STORAGE_API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ key, value }),
+    })
+      .then(async (resposta) => {
+        if (!resposta.ok) {
+          const payload = await resposta.json().catch(() => ({}));
+          throw new Error(payload.error || 'Falha ao salvar dados remotos.');
         }
+      })
+      .catch((error) => {
+        console.error('[Canil] Falha ao salvar chave remota:', key, error.message || error);
       });
   },
 
@@ -899,16 +897,25 @@ const persistentStorage = {
     const key = String(chave || '');
     persistentStorageCache.delete(key);
 
-    if (!supabaseClient || VOLATILE_PERSIST_KEYS.has(key)) return;
+    if (VOLATILE_PERSIST_KEYS.has(key)) return;
 
-    void supabaseClient
-      .from(SUPABASE_STORAGE_TABLE)
-      .delete()
-      .eq('chave', key)
-      .then(({ error }) => {
-        if (error) {
-          console.error('[Canil] Falha ao remover chave do Supabase:', key, error.message);
+    const token = sessionStore.getItem(SESSION_KEYS.authToken) || '';
+    void fetch(STORAGE_API_ENDPOINT, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ key }),
+    })
+      .then(async (resposta) => {
+        if (!resposta.ok) {
+          const payload = await resposta.json().catch(() => ({}));
+          throw new Error(payload.error || 'Falha ao remover dados remotos.');
         }
+      })
+      .catch((error) => {
+        console.error('[Canil] Falha ao remover chave remota:', key, error.message || error);
       });
   },
 };
@@ -930,8 +937,8 @@ const sessionStore = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await bootstrapDados();
   await persistentStorage.init();
-  bootstrapDados();
   carregarEstado();
   garantirDadosBase();
   configurarMenuMobile();
@@ -1077,24 +1084,11 @@ function decode(texto) {
   }
 }
 
-function bootstrapDados() {
-  if (!persistentStorage.getItem(STORAGE_KEYS.animais)) {
-    persistentStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(seeds.animais));
-  }
-  if (!persistentStorage.getItem(STORAGE_KEYS.blog)) {
-    persistentStorage.setItem(STORAGE_KEYS.blog, JSON.stringify(seeds.posts));
-  }
-  if (!persistentStorage.getItem(STORAGE_KEYS.denuncias)) {
-    persistentStorage.setItem(STORAGE_KEYS.denuncias, JSON.stringify([]));
-  }
-  if (!persistentStorage.getItem(STORAGE_KEYS.interesses)) {
-    persistentStorage.setItem(STORAGE_KEYS.interesses, JSON.stringify([]));
-  }
-  if (!persistentStorage.getItem(STORAGE_KEYS.usuarios)) {
-    persistentStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(seeds.usuarios));
-  }
-  if (!persistentStorage.getItem(STORAGE_KEYS.auditoria)) {
-    persistentStorage.setItem(STORAGE_KEYS.auditoria, JSON.stringify([]));
+async function bootstrapDados() {
+  try {
+    await fetch(BOOTSTRAP_API_ENDPOINT, { method: 'POST' });
+  } catch (error) {
+    console.error('[Canil] Falha ao executar bootstrap remoto:', error.message || error);
   }
 }
 
@@ -1111,77 +1105,15 @@ function carregarEstado() {
 }
 
 function normalizarEspeciePets() {
-  let houveMudanca = false;
   estado.animais.forEach((pet) => {
     if (pet.especie) {
-      const especieAnterior = pet.especie;
       pet.especie = normalizarEspecie(pet.especie);
-      if (especieAnterior !== pet.especie) {
-        houveMudanca = true;
-      }
     }
   });
-  
-  if (houveMudanca) {
-    persistentStorage.setItem(STORAGE_KEYS.animais, JSON.stringify(estado.animais));
-  }
 }
 
 function garantirDadosBase() {
-  const mergeById = (listaAtual, listaSeed) => {
-    const mapa = new Map(listaAtual.map((item) => [item.id, item]));
-    listaSeed.forEach((seedItem) => {
-      if (!mapa.has(seedItem.id)) {
-        listaAtual.push(seedItem);
-      }
-    });
-    return listaAtual;
-  };
-
-  // Sempre garante que usuarios-seed estejam com ativo/senhaHash/perfil corretos
-  // (corrige dados corrompidos no persistentStorage de sessoes anteriores)
-  let usuariosSeedAlterado = false;
-  seeds.usuarios.forEach((seedUser) => {
-    const idx = estado.usuarios.findIndex((u) => u.id === seedUser.id);
-    if (idx >= 0) {
-      const atual = estado.usuarios[idx];
-      if (!atual.ativo || atual.senhaHash !== seedUser.senhaHash || atual.perfil !== seedUser.perfil) {
-        estado.usuarios[idx] = { ...atual, ativo: seedUser.ativo, perfil: seedUser.perfil, senhaHash: seedUser.senhaHash };
-        usuariosSeedAlterado = true;
-      }
-    } else {
-      estado.usuarios.push({ ...seedUser });
-      usuariosSeedAlterado = true;
-    }
-  });
-  if (usuariosSeedAlterado) {
-    persistentStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(estado.usuarios));
-  }
-
-  const jaMigrado = persistentStorage.getItem(STORAGE_KEYS.seedUpgradeV2) === '1';
-  const jaMigradoV3 = persistentStorage.getItem(STORAGE_KEYS.seedUpgradeV3) === '1';
-  const jaMigradoV4 = persistentStorage.getItem(STORAGE_KEYS.seedUpgradeV4) === '1';
-
-  if (!jaMigrado) {
-    estado.animais = mergeById(estado.animais, [...seeds.animais, ...extraSeeds.animais]);
-    estado.posts = mergeById(estado.posts, [...seeds.posts, ...extraSeeds.posts]);
-    estado.usuarios = mergeById(estado.usuarios, seeds.usuarios);
-    persistentStorage.setItem(STORAGE_KEYS.seedUpgradeV2, '1');
-  }
-
-  if (!jaMigradoV3) {
-    estado.animais = mergeById(estado.animais, flowSeeds.animais);
-    estado.posts = mergeById(estado.posts, flowSeeds.posts);
-    estado.interesses = mergeById(estado.interesses, flowSeeds.interesses);
-    estado.denuncias = mergeById(estado.denuncias, flowSeeds.denuncias);
-    persistentStorage.setItem(STORAGE_KEYS.seedUpgradeV3, '1');
-  }
-
-  if (!jaMigradoV4) {
-    estado.animais = mergeById(estado.animais, testemunhoSeeds.animais);
-    persistentStorage.setItem(STORAGE_KEYS.seedUpgradeV4, '1');
-  }
-
+  // Normaliza posts — garante campos padrão sem persistir (bootstrap faz o seed)
   estado.posts = estado.posts.map((post) => ({
     autor: 'Equipe Canil de Vilhena',
     capa: '',
@@ -1229,8 +1161,6 @@ function garantirDadosBase() {
 
     return atualizado;
   });
-
-  salvarEstado();
 }
 
 function salvarEstado() {
@@ -2348,41 +2278,54 @@ function configurarLoginSistema() {
   const form = document.getElementById('form-login-sistema');
   const btnLogout = document.getElementById('btn-logout');
 
-  // Preenche campos se "lembrar" estava marcado anteriormente
+  // Preenche o campo de login se "lembrar" estava marcado anteriormente (sessão atual)
   const loginSalvo = persistentStorage.getItem('canil_lembrar_login');
-  const senhaSalva = persistentStorage.getItem('canil_lembrar_senha');
-  if (loginSalvo && senhaSalva) {
+  if (loginSalvo) {
     const inputLogin = document.getElementById('login-usuario');
-    const inputSenha = document.getElementById('login-senha');
     const inputLembrar = document.getElementById('login-lembrar');
     if (inputLogin) inputLogin.value = loginSalvo;
-    if (inputSenha) inputSenha.value = decode(senhaSalva);
     if (inputLembrar) inputLembrar.checked = true;
   }
 
-  form?.addEventListener('submit', (event) => {
+  form?.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     const login = inputValue('login-usuario').toLowerCase();
     const senha = inputValue('login-senha');
     const lembrar = document.getElementById('login-lembrar')?.checked;
 
-    const usuario = estado.usuarios.find((item) => item.login.toLowerCase() === login && item.ativo);
-    if (!usuario || decode(usuario.senhaHash) !== senha) {
-      setStatus('status-login', 'Usuário ou senha inválidos.', 'erro');
+    setStatus('status-login', 'Verificando credenciais…', '');
+
+    let resultado;
+    try {
+      const resposta = await fetch(AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, senha }),
+      });
+      resultado = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) {
+        setStatus('status-login', resultado.error || 'Usuário ou senha inválidos.', 'erro');
+        return;
+      }
+    } catch {
+      setStatus('status-login', 'Erro de conexão. Tente novamente.', 'erro');
       return;
     }
 
-    // Gerencia o "lembrar login"
+    const { token, usuario } = resultado;
+
+    // Armazena token e dados do usuário na sessão em memória
+    sessionStore.setItem(SESSION_KEYS.authToken, token);
+    sessionStore.setItem(SESSION_KEYS.usuario, JSON.stringify(usuario));
+
+    // Lembrar apenas o login (sem senha)
     if (lembrar) {
       persistentStorage.setItem('canil_lembrar_login', login);
-      persistentStorage.setItem('canil_lembrar_senha', encode(senha));
     } else {
       persistentStorage.removeItem('canil_lembrar_login');
-      persistentStorage.removeItem('canil_lembrar_senha');
     }
 
-    sessionStore.setItem(SESSION_KEYS.usuario, JSON.stringify(usuario));
     registrarAuditoria({
       acao: 'login',
       entidade: 'sistema',
@@ -2403,13 +2346,13 @@ function configurarLoginSistema() {
         detalhes: 'Logout realizado no sistema interno.',
       });
     }
+    sessionStore.removeItem(SESSION_KEYS.authToken);
     sessionStore.removeItem(SESSION_KEYS.usuario);
     sessionStore.removeItem(SESSION_KEYS.abaSistema);
     mostrarAreaSistema(false);
     renderUsuarioLogadoTopbar(null);
     if (btnLogout) { btnLogout.style.display = 'none'; }
     const formLogin = document.getElementById('form-login-sistema');
-    // Só limpa os campos se não estava lembrando
     if (!persistentStorage.getItem('canil_lembrar_login')) {
       formLogin?.reset();
     }
@@ -2722,53 +2665,6 @@ function configurarFormularioPet() {
 
   const limitar = (valor, minimo, maximo) => Math.min(maximo, Math.max(minimo, valor));
 
-  const lerArquivoComoDataUrl = (arquivo) =>
-    new Promise((resolve, reject) => {
-      const leitor = new FileReader();
-      leitor.onload = () => resolve(String(leitor.result || ''));
-      leitor.onerror = () => reject(new Error('Falha ao ler arquivo de imagem.'));
-      leitor.readAsDataURL(arquivo);
-    });
-
-  const carregarImagem = (src) =>
-    new Promise((resolve, reject) => {
-      const imagem = new Image();
-      imagem.onload = () => resolve(imagem);
-      imagem.onerror = () => reject(new Error('Arquivo selecionado nao e uma imagem valida.'));
-      imagem.src = src;
-    });
-
-  const arquivoImagemParaDataUrl = async (arquivo) => {
-    const nome = String(arquivo?.name || '').toLowerCase();
-    const extensaoEhImagem = /\.(png|jpe?g|gif|webp|bmp|svg|avif|tiff?|ico|heic|heif|jfif|jpe|jif|jfi)$/i.test(nome);
-    const tipoEhImagem = String(arquivo?.type || '').startsWith('image/');
-
-    if (!arquivo || (!tipoEhImagem && !extensaoEhImagem)) {
-      throw new Error('Selecione apenas arquivos de imagem.');
-    }
-
-    const dataUrlOriginal = await lerArquivoComoDataUrl(arquivo);
-    const imagem = await carregarImagem(dataUrlOriginal);
-    const maxLado = 1400;
-    const escala = Math.min(1, maxLado / Math.max(imagem.width, imagem.height));
-
-    if (escala === 1 && arquivo.size <= 900 * 1024) {
-      return dataUrlOriginal;
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(imagem.width * escala));
-    canvas.height = Math.max(1, Math.round(imagem.height * escala));
-
-    const contexto = canvas.getContext('2d');
-    if (!contexto) {
-      throw new Error('Nao foi possivel processar a imagem selecionada.');
-    }
-
-    contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.86);
-  };
-
   const atualizarPreviewPerfil = () => {
     const preview = document.getElementById('preview-perfil');
     if (!preview) return;
@@ -2836,8 +2732,8 @@ function configurarFormularioPet() {
 
     for (const arquivo of arquivos) {
       try {
-        const dataUrl = await arquivoImagemParaDataUrl(arquivo);
-        galeriaAtual.push(dataUrl);
+        const publicUrl = await uploadArquivoOriginal(arquivo, 'pets');
+        galeriaAtual.push(publicUrl);
         adicionadas += 1;
       } catch (_) {
         rejeitadas += 1;
@@ -4471,49 +4367,6 @@ function configurarBlogSistema() {
     nomeCapa.textContent = possuiCapaAtual ? 'Capa atual mantida' : 'Nenhum arquivo selecionado';
   };
 
-  const lerArquivoComoDataUrl = (arquivo) =>
-    new Promise((resolve, reject) => {
-      const leitor = new FileReader();
-      leitor.onload = () => resolve(String(leitor.result || ''));
-      leitor.onerror = () => reject(new Error('Falha ao ler o arquivo da capa.'));
-      leitor.readAsDataURL(arquivo);
-    });
-
-  const carregarImagem = (src) =>
-    new Promise((resolve, reject) => {
-      const imagem = new Image();
-      imagem.onload = () => resolve(imagem);
-      imagem.onerror = () => reject(new Error('Arquivo de capa invalido.'));
-      imagem.src = src;
-    });
-
-  const arquivoCapaParaDataUrl = async (arquivo) => {
-    if (!arquivo || !String(arquivo.type || '').startsWith('image/')) {
-      throw new Error('Selecione apenas arquivos de imagem para a capa.');
-    }
-
-    const dataUrlOriginal = await lerArquivoComoDataUrl(arquivo);
-    const imagem = await carregarImagem(dataUrlOriginal);
-    const maxLado = 1600;
-    const escala = Math.min(1, maxLado / Math.max(imagem.width, imagem.height));
-
-    if (escala === 1 && arquivo.size <= 950 * 1024) {
-      return dataUrlOriginal;
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(imagem.width * escala));
-    canvas.height = Math.max(1, Math.round(imagem.height * escala));
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Nao foi possivel processar a capa selecionada.');
-    }
-
-    ctx.drawImage(imagem, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.86);
-  };
-
   const reset = () => {
     form.reset();
     setInputValue('blog-id', '');
@@ -4551,9 +4404,9 @@ function configurarBlogSistema() {
     const arquivoSelecionado = inputCapaArquivo?.files?.[0] || null;
     if (arquivoSelecionado) {
       try {
-        capaProcessada = await arquivoCapaParaDataUrl(arquivoSelecionado);
+        capaProcessada = await uploadArquivoOriginal(arquivoSelecionado, 'blog');
       } catch (erro) {
-        setStatus('status-blog', 'Nao foi possivel processar a imagem de capa selecionada.', 'erro');
+        setStatus('status-blog', 'Nao foi possivel enviar a imagem de capa selecionada.', 'erro');
         return;
       }
     }

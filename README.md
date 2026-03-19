@@ -36,9 +36,9 @@ O botão **Funcionários** abre o sistema em nova guia.
 
 ### Sistema de funcionários
 
-- Login interno com persistência remota via Supabase (frontend).
+- Persistência remota via funções serverless no Vercel + Supabase.
 - Cadastro, edição e exclusão de animais com ficha completa.
-- Galeria de fotos com definição de perfil e ajuste de enquadramento (posição X/Y).
+- Galeria de fotos com upload de arquivos originais para o Supabase Storage.
 - Editor da foto de perfil (zoom, brilho, contraste e saturação) com presets.
 - Gestão de usuários do sistema (cadastro, ativação/inativação, reset de senha, perfis).
 - Dashboard operacional com indicadores + listas de interesses de adoção e denúncias.
@@ -57,13 +57,17 @@ Usuário adicional para testes:
 
 ## Persistência de dados
 
-As informações agora são persistidas no Supabase (tabela `public.app_storage`) por meio do arquivo `supabase-config.js`.
+As informações são persistidas pelo backend do Vercel nas estruturas do Supabase:
+
+- tabela `public.app_storage` para dados do sistema,
+- bucket do Supabase Storage para fotos originais dos pets e capas do blog.
 
 Arquivos SQL separados para criar estrutura e políticas:
 
 - `sql/01_schema.sql`
 - `sql/02_policies.sql`
 - `sql/03_seed_inicial.sql`
+- `sql/04_storage_bucket.sql`
 
 Dados cobertos pelo storage remoto:
 
@@ -82,17 +86,36 @@ Observação: a sessão ativa da aba do sistema é mantida apenas em memória da
 	- `sql/01_schema.sql`
 	- `sql/02_policies.sql`
 	- `sql/03_seed_inicial.sql`
-3. Edite `supabase-config.js` com:
-	- `url` do projeto
-	- `anonKey` do projeto
+	- `sql/04_storage_bucket.sql`
+
+## Variáveis no Vercel
+
+Cadastre estas variáveis de ambiente no projeto da Vercel:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET`
+
+Valor recomendado para o bucket:
+
+- `SUPABASE_STORAGE_BUCKET=canil-assets`
+
+Use o arquivo `.env.example` como referência.
+
+Importante:
+
+- não coloque `SUPABASE_SERVICE_ROLE_KEY` no frontend,
+- não use `supabase-config.js`,
+- o repositório pode ficar público porque as credenciais ficam apenas no ambiente da Vercel.
 
 ## Deploy com GitHub + Vercel
 
 1. Suba este repositório para o GitHub.
 2. No Vercel, clique em **Add New Project** e importe o repositório.
 3. Framework preset: **Other** (site estático).
-4. Deploy.
-5. Após qualquer alteração, faça push na branch `main` para novo deploy automático.
+4. Configure as env vars acima.
+5. Deploy.
+6. Após qualquer alteração, faça push na branch `main` para novo deploy automático.
 
 ## Como executar
 
