@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema Interno &middot; Canil Vilhena</title>
+  <link rel="icon" type="image/png" href="image/pingente.png">
+  <link rel="shortcut icon" href="image/pingente.png">
   <link rel="stylesheet" href="style.css?v=9">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +17,10 @@
   <section id="login-sistema" class="login-full">
     <div class="login-card painel">
       <div class="login-header">
-        <strong class="logo logo-sistema-login">Canil Vilhena</strong>
+        <strong class="logo logo-sistema-login">
+          <img src="image/pingente.png" alt="Logo do Canil Vilhena">
+          <span class="logo-text">Canil Vilhena</span>
+        </strong>
         <h2 class="login-titulo">Acesso Interno</h2>
         <p class="texto-suave">Área restrita a funcionários do Canil Municipal de Vilhena.</p>
       </div>
@@ -50,7 +55,10 @@
             </g>
           </svg>
         </button>
-        <a href="index.html" class="logo logo-sistema-topo">Canil Vilhena</a>
+        <a href="index.html" class="logo logo-sistema-topo" aria-label="Canil Vilhena - Página inicial">
+          <img src="image/pingente.png" alt="Logo do Canil Vilhena">
+          <span class="logo-text">Canil Vilhena</span>
+        </a>
       </div>
       <div class="sistema-topbar-acoes">
         <span id="usuario-logado" class="usuario-logado"></span>
@@ -720,6 +728,12 @@
       </div>
     </div>
   </div>
+
+  <footer class="rodape rodape-sistema">
+    <div class="container rodape-copy">
+      <p>&copy; C.L.A.</p>
+    </div>
+  </footer>
 
   <script src="script.js?v=10"></script>
 </body>

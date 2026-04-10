@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Canil Vilhena • Adote um Amigo!</title>
+  <link rel="icon" type="image/png" href="image/pingente.png">
+  <link rel="shortcut icon" href="image/pingente.png">
   <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
@@ -11,7 +13,10 @@
   <!-- Header -->
   <header class="topo">
     <div class="container topo-conteudo">
-      <a href="index.html" class="logo">Canil Vilhena</a>
+      <a href="index.html" class="logo" aria-label="Canil Vilhena - Página inicial">
+        <img src="image/pingente.png" alt="Logo do Canil Vilhena">
+        <span class="logo-text">Canil Vilhena</span>
+      </a>
       <nav>
         <a href="index.html" class="ativo">Início</a>
         <a href="pets.html">Adotar</a>
@@ -27,12 +32,17 @@
   <main>
     <section class="hero container">
       <div class="hero-grid">
-        <span class="selo">#AdoteNãoCompre</span>
-        <h1>Encontre seu novo<br><span>melhor amigo!</span></h1>
-        <p class="subtitulo">Conheça nossos cães e gatos resgatados que estão em busca de uma segunda chance. Um ato de amor muda o mundo inteiro de um animal.</p>
-        <div class="acoes">
-          <a href="pets.html" class="btn btn-principal">Conhecer os pets</a>
-          <a href="projeto.html" class="btn btn-secundario">Como ajudar?</a>
+        <div class="hero-copy">
+          <span class="selo">#AdoteVilhena</span>
+          <h1>Encontre seu novo<br><span>melhor amigo!</span></h1>
+          <p class="subtitulo">Conheça nossos cães e gatos resgatados que estão em busca de uma segunda chance. Um ato de amor muda o mundo inteiro de um animal.</p>
+          <div class="acoes">
+            <a href="pets.html" class="btn btn-principal">Conhecer os pets</a>
+            <a href="projeto.html" class="btn btn-secundario">Como ajudar?</a>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <img src="image/criancas.png" alt="">
         </div>
       </div>
     </section>
@@ -159,6 +169,9 @@
         <p style="color: var(--text-soft); font-weight: 600; margin-bottom: 0.5rem;">📞 (69) 3322-1111</p>
         <p style="color: var(--text-soft); font-weight: 600; margin-bottom: 0.5rem;">📧 canil@vilhena.ro.gov.br</p>
       </div>
+    </div>
+    <div class="container rodape-copy">
+      <p>&copy; C.L.A.</p>
     </div>
   </footer>
 
