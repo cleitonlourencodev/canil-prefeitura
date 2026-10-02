@@ -1,125 +1,175 @@
-# Canil de Vilhena — Portal de Adoção
+# Canil Municipal de Vilhena (RO)
 
-Site institucional com foco em:
+Site público e sistema de gestão do Canil Municipal: divulga pets para adoção,
+publica conteúdo no blog, recebe denúncias e ainda tem uma área restrita para a
+equipe gerenciar tudo isso.
 
-- resgate de animais de rua e de maus-tratos,
-- recuperação e cuidados veterinários,
-- adoção responsável para famílias comprometidas.
+O projeto é **HTML, CSS e JavaScript puros** (sem framework e sem etapa de build),
+com **banco SQLite local** versionado junto do código. Não depende de nenhum
+serviço externo: não há Supabase, Vercel ou nuvem.
 
-## Estrutura do projeto
+---
 
-O projeto está separado em páginas exclusivas:
+## Como rodar
 
-- `index.html` (Home, com amostras)
-- `pets.html` (busca completa e perfis)
-- `blog.html` (conteúdos)
-- `projeto.html` (apresentação institucional)
-- `contato.html` (canais de contato e denúncias)
-- `adocao.html` (próxima etapa de adoção)
-- `sistema.html` (gestão interna)
+Requisitos: **Node.js 22.5 ou superior** (recomendado 24). O banco usa o módulo
+nativo `node:sqlite`, por isso o projeto não instala nenhuma dependência.
 
-O botão **Funcionários** abre o sistema em nova guia.
+```bash
+npm run dev
+```
 
-## Funcionalidades
+Abre em <http://localhost:4173> com site **e** sistema funcionando.
 
-### Site público
+| Comando | O que faz |
+| --- | --- |
+| `npm run dev` | Sobe site + API em `http://localhost:4173` |
+| `npm start` | Igual ao `dev` |
+| `npm run seed` | Cria `db/canil.sqlite` com os dados de demonstração |
+| `npm run seed:reset` | Limpa o banco e recria do zero |
+| `npm run db:check` | Mostra o conteúdo e a cobertura temporal do banco |
+| `npm test` | Testes de API, páginas e marcação (servidor precisa estar no ar) |
+| `npm run test:navegador` | Renderiza as páginas em um Chrome/Edge headless de verdade |
+| `npm run images:download` | Rebaixa fotos de pets do Wikimedia Commons |
+| `npm run images:optimize` | Redimensiona e recomprime `uploads/pets` e `image` |
 
-- Home com pets em destaque (slides), prévia do blog e CTA para contato.
-- Seções adicionais de fluxo de adoção, depoimentos e FAQ.
-- Página Pets com busca completa:
-	- texto livre (nome, descrição, temperamento e energia),
-	- filtros por espécie, status e porte.
-- Perfil completo público em modal com galeria organizada por miniaturas.
-- Botão de adoção ao lado da foto/perfil, levando para `adocao.html` com pet pré-selecionado.
-- Formulário oficial de denúncias exclusivamente em `contato.html`.
-- Separação de privacidade: dados sensíveis ficam fora do site público.
+### Testes
 
-### Sistema de funcionários
+```bash
+npm run dev          # em um terminal
+npm test             # em outro
+```
 
-- Persistência remota via funções serverless no Vercel + Supabase.
-- Cadastro, edição e exclusão de animais com ficha completa.
-- Galeria de fotos com upload de arquivos originais para o Supabase Storage.
-- Editor da foto de perfil (zoom, brilho, contraste e saturação) com presets.
-- Gestão de usuários do sistema (cadastro, ativação/inativação, reset de senha, perfis).
-- Dashboard operacional com indicadores + listas de interesses de adoção e denúncias.
+- `scripts/testes-api.js` — rotas, permissões, login, upload e integridade das imagens
+- `scripts/testes-paginas.js` — sintaxe, links, e coerência entre dados e fotos
+- `scripts/testes-dom.js` — IDs e atributos que o script usa x HTML que existe
+- `scripts/testes-navegador.js` — de verdade: abre cada página, faz login e
+  verifica se os cards renderizam e se nenhuma imagem quebra
 
-#### Credenciais temporárias
+### Acesso ao sistema
 
-- Usuário: `admin`
-- Senha: `admin123`
+Abra `http://localhost:4173/sistema.html`.
 
-Usuário adicional para testes:
+| Perfil | Login | Senha |
+| --- | --- | --- |
+| Administrador | `admin` | `admin123` |
+| Veterinária | `paula.vet` | `vet12345` |
+| Atendente | `carlos.atend` | `atend123` |
 
-- Usuário: `paula.vet`
-- Senha: `vet12345`
+> These are demo credentials. Change the `senhaHash` (base64) in `api/_seed.js`
+> and run `npm run seed:reset`.
 
-> Essas credenciais são apenas para desenvolvimento local. Na próxima etapa, substitua por autenticação real.
+---
 
-## Persistência de dados
+## Estrutura
 
-As informações são persistidas pelo backend do Vercel nas estruturas do Supabase:
+```
+├── index.html          Página inicial
+├── pets.html           Feed de pets para adoção
+├── adocao.html         Formulário de interesse em adoção
+├── blog.html / blog-post.html
+├── projeto.html        Projeto do canil + histórias de adoção
+├── contato.html        Denúncias de maus-tratos
+├── sistema.html        Área restrita da equipe
+├── style.css
+├── script.js           Toda a lógica do front-end
+│
+├── api/                API em Node puro (handlers simples)
+│   ├── _db.js          Conexão SQLite, JWT e utilidades
+│   ├── _seed.js        Dados de demonstração (fonte da verdade)
+│   ├── bootstrap.js    Carrega os dados iniciais
+│   ├── login.js        Autenticação
+│   ├── storage.js      Persistência chave/valor
+│   └── upload.js       Envio de imagens
+│
+├── scripts/            Ferramentas de desenvolvimento
+│   ├── server.js       Servidor único (estático + API)
+│   ├── seed.js         Cria/recria o banco
+│   ├── db-check.js     Inspeção do banco
+│   ├── testes-*.js     Testes de API, páginas, DOM e navegador
+│   └── otimizar-*.ps1  Recompressão das imagens
+│
+├── db/canil.sqlite     Banco de dados (versionado)
+├── uploads/pets/       Fotos dos pets e capas do blog
+└── image/              Logo e imagens do layout
+```
 
-- tabela `public.app_storage` para dados do sistema,
-- bucket do Supabase Storage para fotos originais dos pets e capas do blog.
+---
 
-Arquivos SQL separados para criar estrutura e políticas:
+## Banco de dados
 
-- `sql/01_schema.sql`
-- `sql/02_policies.sql`
-- `sql/03_seed_inicial.sql`
-- `sql/04_storage_bucket.sql`
+O arquivo `db/canil.sqlite` fica no repositório de propósito: como o projeto é
+uma amostra, o estado do sistema viaja junto com o código e qualquer pessoa
+consegue rodar sem configurar nada.
 
-Dados cobertos pelo storage remoto:
+Duas tabelas:
 
-- animais cadastrados,
-- posts do blog,
-- denúncias registradas,
-- interesses de adoção,
-- usuários internos.
+- **`app_storage`** — pares `chave`/`valor`. O front-end do site lê e escreve por
+  aqui (`pv_animais`, `pv_blog_posts`, `pv_usuarios`, …), exatamente o mesmo
+  contrato que o site usava antes.
+- **`uploads`** — registro das imagens enviadas pelo painel do sistema.
 
-Observação: a sessão ativa da aba do sistema é mantida apenas em memória da página.
+Os dados iniciais ficam em `api/_seed.js`. Se você editar esse arquivo, rode
+`npm run seed:reset` para recarregar o banco.
 
-## Supabase (setup rápido)
+As datas do seed são calculadas em torno da data em que o seed roda: pets são
+distribuídos ao longo do último ano (a maioria nos últimos 90 dias) para que o
+painel, que filtra por período, sempre mostre movimento.
 
-1. Crie um projeto no Supabase.
-2. Abra o SQL Editor e execute, nesta ordem:
-	- `sql/01_schema.sql`
-	- `sql/02_policies.sql`
-	- `sql/03_seed_inicial.sql`
-	- `sql/04_storage_bucket.sql`
+### O que tem no banco de demonstração
 
-## Variáveis no Vercel
+| Conjunto | Quantidade | Observação |
+| --- | --- | --- |
+| Pets | 26 | 14 disponíveis, 2 em tratamento, 10 adotados |
+| Posts do blog | 11 | com capa local e texto completo |
+| Histórias de adoção | 5 | 4 publicadas na página "O Projeto" |
+| Interesses em adoção | 7 | em todas as etapas do fluxo |
+| Denúncias | 4 | abertas, em análise e resolvidas |
+| Usuários | 3 | admin, veterinária e atendente |
 
-Cadastre estas variáveis de ambiente no projeto da Vercel:
+### Segurança aplicada
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_STORAGE_BUCKET`
+- Senhas em base64 (apenas para demonstração — em produção use hash com salt).
+- Sessão por JWT HS256 assinado localmente; a chave fica em `db/.segredo-local`,
+  gerada no primeiro acesso e fora do Git.
+- Leitura de `/api/storage` é pública, mas nunca devolve `senhaHash`.
+- Escrita exige sessão, exceto para os formulários públicos do site
+  (interesse em adoção, denúncia e auditoria).
+- O banco não é servido pelo servidor web (retorna 403).
 
-Valor recomendado para o bucket:
+---
 
-- `SUPABASE_STORAGE_BUCKET=canil-assets`
+## Imagens
 
-Use o arquivo `.env.example` como referência.
+Todas as fotos estão em `uploads/pets/` e são versionadas no repositório — o
+site não depende de nenhuma hospedagem de imagem externa.
 
-Importante:
+Os arquivos vieram do [Wikimedia Commons](https://commons.wikimedia.org/) com
+licenças livres. Os créditos (autor, licença e página de origem de cada foto)
+estão em `uploads/indice-fotos.json`.
 
-- não coloque `SUPABASE_SERVICE_ROLE_KEY` no frontend,
-- não use `supabase-config.js`,
-- o repositório pode ficar público porque as credenciais ficam apenas no ambiente da Vercel.
+Para adicionar fotos novas, basta colocá-las em `uploads/pets/` e referenciar o
+caminho no cadastro do pet — o sistema aceita JPEG, PNG, WEBP e GIF de até 6 MB.
 
-## Deploy com GitHub + Vercel
+---
 
-1. Suba este repositório para o GitHub.
-2. No Vercel, clique em **Add New Project** e importe o repositório.
-3. Framework preset: **Other** (site estático).
-4. Configure as env vars acima.
-5. Deploy.
-6. Após qualquer alteração, faça push na branch `main` para novo deploy automático.
+## Deploy
 
-## Como executar
+Como o banco é um arquivo local, qualquer hospedagem com Node serve o projeto
+direto:
 
-1. Abra `index.html` no VS Code.
-2. Use **Go Live** (Live Server) ou abra diretamente no navegador.
-3. Navegue pelas seções públicas normalmente.
-4. Para a gestão interna, clique em **Funcionários**.
+```bash
+npm install   # não instala nada: o projeto não tem dependências
+npm run dev
+```
+
+Em ambientes onde o sistema de arquivos é somente leitura, defina
+`CANIL_DB_PATH` apontando para um diretório gravável.
+
+---
+
+## Observações
+
+- As senhas e os dados pessoais aqui são fictícios.
+- `db/.segredo-local` e os arquivos `*.sqlite-wal` / `*.sqlite-shm` não devem ir
+  para o Git.

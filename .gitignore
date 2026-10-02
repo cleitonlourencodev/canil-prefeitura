@@ -1,0 +1,10 @@
+# Segredo local de assinatura dos tokens (gerado no primeiro acesso)
+db/.segredo-local
+
+# Arquivos temporarios do SQLite
+db/*.sqlite-wal
+db/*.sqlite-shm
+
+node_modules/
+.DS_Store
+*.log

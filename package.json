@@ -3,7 +3,20 @@
   "private": true,
   "version": "1.0.0",
   "type": "commonjs",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.49.4"
+  "description": "Site e sistema de gestao do Canil Municipal de Vilhena (RO) - HTML, CSS e JavaScript sem framework, com banco SQLite local.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "dev": "node scripts/server.js",
+    "start": "node scripts/server.js",
+    "seed": "node scripts/seed.js",
+    "seed:reset": "node scripts/seed.js --reset",
+    "db:check": "node scripts/db-check.js",
+    "test": "node scripts/testes-api.js && node scripts/testes-paginas.js && node scripts/testes-dom.js",
+    "test:navegador": "node scripts/testes-navegador.js",
+    "images:download": "node scripts/fetch-commons.js",
+    "images:credits": "node scripts/fetch-commons.js && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/compactar-fotos.js",
+    "images:optimize": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/otimizar-imagens.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/otimizar-png.ps1"
   }
 }

@@ -1,124 +1,100 @@
-const { getSupabaseAdmin, readRawBody, gerarToken } = require('./_supabase');
+// api/login.js
+// Autenticacao dos operadores do sistema (admin, veterinario, atendente).
+// Senhas guardadas em base64, como no restante do projeto de demonstracao.
 
-// Verifica senha armazenada como base64 (btoa no browser)
-function verificarSenha(senha, senhaHash) {
-  try {
-    const decoded = Buffer.from(String(senhaHash || ''), 'base64').toString('utf8');
-    return decoded === senha;
-  } catch {
-    return false;
-  }
-}
+const { CHAVES, ler, readRawBody, gerarToken, usuarioDoToken } = require('./_db');
 
-function delay(minMs, inicio) {
-  const elapsed = Date.now() - inicio;
-  const remaining = minMs - elapsed;
-  return remaining > 0 ? new Promise((r) => setTimeout(r, remaining)) : Promise.resolve();
+function compararSenha(senha, senhaHash) {
+  return Buffer.from(String(senha)).toString('base64') === String(senhaHash || '');
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
+  // GET valida a sessao atual do navegador
+  if (req.method === 'GET') {
+    const usuario = usuarioDoToken(req);
+    if (!usuario) {
+      res.statusCode = 401;
+      res.end(JSON.stringify({ error: 'Sessão inválida ou expirada.' }));
+      return;
+    }
+    res.statusCode = 200;
+    res.end(JSON.stringify({ ok: true, usuario }));
+    return;
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', 'GET, POST');
     res.statusCode = 405;
     res.end(JSON.stringify({ error: 'Método não permitido.' }));
     return;
   }
 
-  const inicio = Date.now();
-
-  let body;
+  const raw = await readRawBody(req);
+  let credenciais = {};
   try {
-    const raw = await readRawBody(req);
-    body = JSON.parse(raw.toString('utf8'));
+    credenciais = raw.length ? JSON.parse(raw.toString('utf8')) : {};
   } catch {
-    await delay(300, inicio);
     res.statusCode = 400;
-    res.end(JSON.stringify({ error: 'Corpo da requisição inválido.' }));
+    res.end(JSON.stringify({ error: 'Credenciais inválidas.' }));
     return;
   }
 
-  const login = String(body?.login || '').trim().toLowerCase();
-  const senha = String(body?.senha || '');
+  const login = String(credenciais.login || '').trim().toLowerCase();
+  const senha = String(credenciais.senha || '');
+  const bruto = ler(CHAVES.usuarios);
+  let usuarios = [];
+  try {
+    usuarios = bruto ? JSON.parse(bruto) : [];
+  } catch {
+    usuarios = [];
+  }
 
   if (!login || !senha) {
-    await delay(300, inicio);
     res.statusCode = 400;
-    res.end(JSON.stringify({ error: 'Login e senha são obrigatórios.' }));
+    res.end(JSON.stringify({ error: 'Informe login e senha.' }));
     return;
   }
 
-  let supabase;
-  try {
-    supabase = getSupabaseAdmin();
-  } catch {
-    await delay(300, inicio);
-    res.statusCode = 500;
-    res.end(JSON.stringify({ error: 'Erro de configuração do servidor.' }));
-    return;
-  }
+  const usuario = (Array.isArray(usuarios) ? usuarios : []).find(
+    (item) => String(item.login || '').trim().toLowerCase() === login,
+  );
 
-  const { data, error } = await supabase
-    .from('app_storage')
-    .select('valor')
-    .eq('chave', 'pv_usuarios')
-    .single();
-
-  if (error || !data) {
-    await delay(300, inicio);
+  if (!usuario || !compararSenha(senha, usuario.senhaHash)) {
     res.statusCode = 401;
-    res.end(JSON.stringify({ error: 'Usuário ou senha inválidos.' }));
+    res.end(JSON.stringify({ error: 'Login ou senha incorretos.' }));
     return;
   }
 
-  let usuarios;
-  try {
-    usuarios = JSON.parse(data.valor);
-  } catch {
-    await delay(300, inicio);
-    res.statusCode = 401;
-    res.end(JSON.stringify({ error: 'Usuário ou senha inválidos.' }));
+  if (usuario.ativo === false) {
+    res.statusCode = 403;
+    res.end(JSON.stringify({ error: 'Usuário desativado. Procure o administrador.' }));
     return;
   }
 
-  const usuario = Array.isArray(usuarios)
-    ? usuarios.find((u) => String(u.login || '').toLowerCase() === login && u.ativo === true)
-    : null;
-
-  const senhaValida = usuario && verificarSenha(senha, String(usuario.senhaHash || ''));
-
-  await delay(300, inicio);
-
-  if (!senhaValida) {
-    res.statusCode = 401;
-    res.end(JSON.stringify({ error: 'Usuário ou senha inválidos.' }));
-    return;
-  }
-
-  let token;
-  try {
-    token = gerarToken({
-      id: usuario.id,
-      login: usuario.login,
-      nome: usuario.nome,
-      perfil: usuario.perfil,
-    });
-  } catch {
-    res.statusCode = 500;
-    res.end(JSON.stringify({ error: 'Erro ao gerar sessão.' }));
-    return;
-  }
+  const token = gerarToken({
+    sub: usuario.id,
+    nome: usuario.nome,
+    login: usuario.login,
+    perfil: usuario.perfil,
+  });
 
   res.statusCode = 200;
-  res.end(JSON.stringify({
-    ok: true,
-    token,
-    usuario: {
-      id: usuario.id,
-      login: usuario.login,
-      nome: usuario.nome,
-      perfil: usuario.perfil,
-    },
-  }));
+  res.end(
+    JSON.stringify({
+      ok: true,
+      token,
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        login: usuario.login,
+        perfil: usuario.perfil,
+        email: usuario.email || '',
+        cpf: usuario.cpf || '',
+        telefone: usuario.telefone || '',
+        cargo: usuario.cargo || '',
+      },
+    }),
+  );
 };
