@@ -15,6 +15,7 @@
     "db:check": "node scripts/db-check.js",
     "test": "node scripts/testes-api.js && node scripts/testes-paginas.js && node scripts/testes-dom.js",
     "test:navegador": "node scripts/testes-navegador.js",
+    "test:imagens": "node scripts/testes-imagens.js",
     "images:download": "node scripts/fetch-commons.js",
     "images:credits": "node scripts/fetch-commons.js && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/compactar-fotos.js",
     "images:optimize": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/otimizar-imagens.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/otimizar-png.ps1"

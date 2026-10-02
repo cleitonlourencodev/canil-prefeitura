@@ -5,7 +5,14 @@ param(
 
 Add-Type -AssemblyName System.Drawing
 
-$arquivos = Get-ChildItem -LiteralPath $Pasta -Include *.png -Recurse -File
+$arquivos = Get-ChildItem -LiteralPath $Pasta -Recurse -File |
+  Where-Object { $_.Extension -eq '.png' }
+
+if (-not $arquivos) {
+  "nenhum PNG em $Pasta"
+  return
+}
+
 $codigoPng = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
   Where-Object { $_.MimeType -eq 'image/png' }
 
@@ -23,7 +30,8 @@ foreach ($arquivo in $arquivos) {
   $novoH = [int][Math]::Round($altura * $escala)
   $origem.Dispose()
 
-  $bitmap = New-Object System.Drawing.Bitmap($novoW, $novoH)
+  # 32bppArgb e obrigatorio: e o formato que preserva o canal alfa do original.
+  $bitmap = New-Object System.Drawing.Bitmap($novoW, $novoH, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $bitmap.SetResolution(96, 96)
 
   $grafico = [System.Drawing.Graphics]::FromImage($bitmap)
@@ -44,6 +52,19 @@ foreach ($arquivo in $arquivos) {
   $temp = [System.IO.Path]::GetTempFileName() + ".png"
   $bitmap.Save($temp, $codigoPng, $parametros)
   $bitmap.Dispose()
+
+  # Verificacao de seguranca: um PNG transparente nao pode virar opaco.
+  $verificacao = [System.Drawing.Bitmap]::FromFile($temp)
+  $canto = $verificacao.GetPixel(0, 0)
+  $formato = $verificacao.PixelFormat
+  $verificacao.Dispose()
+
+  if ($formato -notmatch 'Argb|PArgb' -and $canto.A -eq 0) {
+    "ERRO: $($arquivo.Name) ficou sem canal alfa (formato $formato). Descartado."
+    Remove-Item -LiteralPath $temp -Force
+    $totalDepois += $arquivo.Length
+    continue
+  }
 
   $tamanhoTemp = (Get-Item $temp).Length
   if ($tamanhoTemp -lt $arquivo.Length) {

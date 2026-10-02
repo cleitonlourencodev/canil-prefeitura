@@ -6,7 +6,17 @@ param(
 
 Add-Type -AssemblyName System.Drawing
 
-$arquivos = Get-ChildItem -LiteralPath $Pasta -Include *.jpg,*.png,*.jpeg -Recurse -File
+# Apenas JPEG. PNG tem canal alfa e nao pode passar por este script:
+# o encoder JPEG preenche a transparencia com preto.
+$arquivos = Get-ChildItem -LiteralPath $Pasta -Recurse -File |
+  Where-Object { $_.Extension -in '.jpg', '.jpeg' }
+
+$ignorados = Get-ChildItem -LiteralPath $Pasta -Recurse -File |
+  Where-Object { $_.Extension -eq '.png' }
+if ($ignorados) {
+  "ignorados $($ignorados.Count) PNG (use otimizar-png.ps1): $($ignorados.Name -join ', ')"
+}
+
 $totalAntes = 0L
 $totalDepois = 0L
 
