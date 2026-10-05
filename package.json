@@ -5,7 +5,7 @@
   "type": "commonjs",
   "description": "Site e sistema de gestao do Canil Municipal de Vilhena (RO) - HTML, CSS e JavaScript sem framework, com banco SQLite local.",
   "engines": {
-    "node": ">=22.5"
+    "node": ">=20"
   },
   "scripts": {
     "dev": "node scripts/server.js",
@@ -19,5 +19,8 @@
     "images:download": "node scripts/fetch-commons.js",
     "images:credits": "node scripts/fetch-commons.js && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/compactar-fotos.js",
     "images:optimize": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/otimizar-imagens.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/otimizar-png.ps1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
   }
 }

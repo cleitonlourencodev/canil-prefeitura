@@ -1,24 +1,19 @@
 // api/_db.js
-// Camada de persistencia do Canil: SQLite local (node:sqlite), sem servico externo.
+// Camada de persistencia do Canil: SQLite local via better-sqlite3, sem servico externo.
 // O arquivo do banco fica em db/canil.sqlite e pode ser versionado no GitHub.
 //
 // Tabelas:
 //   app_storage -> pares chave/valor JSON (mesmo contrato usado pelo front-end)
 //   uploads     -> registro dos arquivos enviados pelo painel do sistema
 //
-// O node:sqlite e nativo do Node 22.5+ (estavel no Node 24), por isso o projeto
-// roda com zero dependencias.
+// Usa better-sqlite3 (binario nativo linux-x64) para funcionar tambem no Node 20
+// do Vercel, onde node:sqlite nao existe (exigencia Node 22.5+).
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-let DatabaseSync = null;
-try {
-  ({ DatabaseSync } = require('node:sqlite'));
-} catch {
-  DatabaseSync = null;
-}
+const Database = require('better-sqlite3');
 
 const ROOT = path.resolve(__dirname, '..');
 const DB_DIR = path.join(ROOT, 'db');
@@ -46,40 +41,38 @@ let db = null;
 function getDb() {
   if (db) return db;
 
-  if (!DatabaseSync) {
-    const erro = new Error(
-      'node:sqlite indisponivel. Use Node.js 22.5 ou superior (recomendado 24).',
-    );
-    erro.statusCode = 500;
-    throw erro;
+  const readOnly = process.env.VERCEL === '1';
+
+  if (readOnly) {
+    db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+  } else {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+    db = new Database(DB_PATH);
+    db.exec('PRAGMA journal_mode = WAL;');
+    db.exec('PRAGMA foreign_keys = ON;');
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS app_storage (
+        chave       TEXT PRIMARY KEY,
+        valor       TEXT NOT NULL DEFAULT '',
+        criado_em   TEXT NOT NULL DEFAULT (datetime('now')),
+        atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS uploads (
+        id           TEXT PRIMARY KEY,
+        pasta        TEXT NOT NULL,
+        arquivo      TEXT NOT NULL,
+        caminho      TEXT NOT NULL,
+        content_type TEXT,
+        tamanho      INTEGER NOT NULL DEFAULT 0,
+        enviado_por  TEXT,
+        criado_em    TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_uploads_pasta ON uploads(pasta);
+    `);
   }
-
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  db = new DatabaseSync(DB_PATH);
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA foreign_keys = ON;');
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS app_storage (
-      chave       TEXT PRIMARY KEY,
-      valor       TEXT NOT NULL DEFAULT '',
-      criado_em   TEXT NOT NULL DEFAULT (datetime('now')),
-      atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS uploads (
-      id           TEXT PRIMARY KEY,
-      pasta        TEXT NOT NULL,
-      arquivo      TEXT NOT NULL,
-      caminho      TEXT NOT NULL,
-      content_type TEXT,
-      tamanho      INTEGER NOT NULL DEFAULT 0,
-      enviado_por  TEXT,
-      criado_em    TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_uploads_pasta ON uploads(pasta);
-  `);
 
   return db;
 }

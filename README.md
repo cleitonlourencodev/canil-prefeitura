@@ -12,8 +12,9 @@ serviço externo: não há Supabase, Vercel ou nuvem.
 
 ## Como rodar
 
-Requisitos: **Node.js 22.5 ou superior** (recomendado 24). O banco usa o módulo
-nativo `node:sqlite`, por isso o projeto não instala nenhuma dependência.
+Requisitos: **Node.js 20 ou superior**. O banco usa `better-sqlite3` (um único
+pacote nativo), por isso instala apenas uma dependência e roda em qualquer
+ambiente Node, incluindo o Node 20 do Vercel.
 
 ```bash
 npm run dev
@@ -159,7 +160,7 @@ Como o banco é um arquivo local, qualquer hospedagem com Node serve o projeto
 direto:
 
 ```bash
-npm install   # não instala nada: o projeto não tem dependências
+npm install   # instala a unica dependencia: better-sqlite3
 npm run dev
 ```
 
