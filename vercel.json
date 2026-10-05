@@ -34,6 +34,6 @@
     { "src": "/api/(bootstrap|storage|login|upload)", "dest": "/api/$1.js" }
   ],
   "rewrites": [
-    { "src": "/(.*)", "dest": "/$1" }
+    { "source": "/(.*)", "destination": "/$1" }
   ]
 }
