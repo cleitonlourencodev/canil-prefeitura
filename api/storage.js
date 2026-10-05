@@ -30,7 +30,14 @@ module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     const itens = {};
 
-    for (const [chave, valor] of Object.entries(lerTudo())) {
+    let tudo = {};
+    try {
+      tudo = lerTudo();
+    } catch {
+      // Banco indisponivel: front-end usa os padroes locais.
+    }
+
+    for (const [chave, valor] of Object.entries(tudo)) {
       if (CHAVES_PROTEGIDAS.has(chave)) {
         try {
           itens[chave] = semSenhas(valor);

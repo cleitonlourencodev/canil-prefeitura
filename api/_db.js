@@ -44,7 +44,13 @@ function getDb() {
   const readOnly = process.env.VERCEL === '1';
 
   if (readOnly) {
-    db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+    try {
+      db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+    } catch {
+      // Pacote da funcao sem o arquivo do banco: cai em memoria para
+      // nao quebrar o site (os dados de demonstracao vem do seed).
+      db = new Database(':memory:');
+    }
   } else {
     fs.mkdirSync(DB_DIR, { recursive: true });
     db = new Database(DB_PATH);
