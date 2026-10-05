@@ -48,18 +48,24 @@ module.exports = async function handler(req, res) {
   usuarios = mesclarPorId(usuarios, USUARIOS);
   auditoria = mesclarPorId(auditoria, AUDITORIA);
 
-  gravarLote([
-    { chave: CHAVES.animais, valor: JSON.stringify(animais) },
-    { chave: CHAVES.blog, valor: JSON.stringify(posts) },
-    { chave: CHAVES.interesses, valor: JSON.stringify(interesses) },
-    { chave: CHAVES.denuncias, valor: JSON.stringify(denuncias) },
-    { chave: CHAVES.usuarios, valor: JSON.stringify(usuarios) },
-    { chave: CHAVES.auditoria, valor: JSON.stringify(auditoria) },
-    {
-      chave: CHAVES.metaSeed,
-      valor: JSON.stringify({ versao: 1, atualizadoEm: new Date().toISOString() }),
-    },
-  ]);
+  // No Vercel o sistema de arquivos e somente-leitura: gravarLote falha,
+  // mas os dados ja estao no db/commitado, entao devolvemos os totais mesmo assim.
+  try {
+    gravarLote([
+      { chave: CHAVES.animais, valor: JSON.stringify(animais) },
+      { chave: CHAVES.blog, valor: JSON.stringify(posts) },
+      { chave: CHAVES.interesses, valor: JSON.stringify(interesses) },
+      { chave: CHAVES.denuncias, valor: JSON.stringify(denuncias) },
+      { chave: CHAVES.usuarios, valor: JSON.stringify(usuarios) },
+      { chave: CHAVES.auditoria, valor: JSON.stringify(auditoria) },
+      {
+        chave: CHAVES.metaSeed,
+        valor: JSON.stringify({ versao: 1, atualizadoEm: new Date().toISOString() }),
+      },
+    ]);
+  } catch (erro) {
+    // Sistema de arquivos somente-leitura: os dados ja estao presentes.
+  }
 
   res.statusCode = 200;
   res.end(

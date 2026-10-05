@@ -165,10 +165,17 @@ function segredoLocal() {
   try {
     return fs.readFileSync(SEGREDOS_PATH, 'utf8').trim();
   } catch {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-    const segredo = crypto.randomBytes(48).toString('hex');
-    fs.writeFileSync(SEGREDOS_PATH, `${segredo}\n`, { mode: 0o600 });
-    return segredo;
+    // Em ambientes somente-leitura (Vercel), nao e possivel persistir o segredo.
+    // Gera uma chave efemera por invocacao — suficiente para validar o token
+    // dentro da mesma instancia de funcao. Em producao, defina CANIL_JWT_SECRET.
+    try {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+      const segredo = crypto.randomBytes(48).toString('hex');
+      fs.writeFileSync(SEGREDOS_PATH, `${segredo}\n`, { mode: 0o600 });
+      return segredo;
+    } catch {
+      return crypto.randomBytes(32).toString('hex');
+    }
   }
 }
 

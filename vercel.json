@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/bootstrap.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["api/**", "db/**", "uploads/**", "image/**"]
+      }
+    },
+    {
+      "src": "api/login.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["api/**", "db/**"]
+      }
+    },
+    {
+      "src": "api/storage.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["api/**", "db/**", "uploads/**"]
+      }
+    },
+    {
+      "src": "api/upload.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["api/**", "db/**", "uploads/**"]
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/api/(bootstrap|storage|login|upload)", "dest": "/api/$1.js" }
+  ],
+  "rewrites": [
+    { "src": "/(.*)", "dest": "/$1" }
+  ]
+}
