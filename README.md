@@ -113,6 +113,13 @@ Duas tabelas:
 Os dados iniciais ficam em `api/_seed.js`. Se você editar esse arquivo, rode
 `npm run seed:reset` para recarregar o banco.
 
+No deploy da Vercel, se o SQLite local estiver ausente ou vazio, a leitura de
+`/api/storage` busca o snapshot versionado em
+[`db/canil.sqlite`](./db/canil.sqlite) diretamente no GitHub (`main`). Se o
+GitHub estiver indisponível, os dados iniciais de `api/_seed.js` são usados.
+Essa leitura não grava alterações no GitHub: para publicar novos dados nessa
+fonte, atualize e envie o banco ao repositório.
+
 As datas do seed são calculadas em torno da data em que o seed roda: pets são
 distribuídos ao longo do último ano (a maioria nos últimos 90 dias) para que o
 painel, que filtra por período, sempre mostre movimento.
