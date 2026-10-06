@@ -1,39 +1,18 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "builds": [
-    {
-      "src": "api/bootstrap.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["api/**", "db/**", "uploads/**", "image/**"]
-      }
+  "functions": {
+    "api/bootstrap.js": {
+      "includeFiles": "{api/**,db/**,uploads/**,image/**}"
     },
-    {
-      "src": "api/login.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["api/**", "db/**"]
-      }
+    "api/login.js": {
+      "includeFiles": "{api/**,db/**}"
     },
-    {
-      "src": "api/storage.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["api/**", "db/**", "uploads/**"]
-      }
+    "api/storage.js": {
+      "includeFiles": "{api/**,db/**,uploads/**}"
     },
-    {
-      "src": "api/upload.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["api/**", "db/**", "uploads/**"]
-      }
+    "api/upload.js": {
+      "includeFiles": "{api/**,db/**,uploads/**}"
     }
-  ],
-  "routes": [
-    { "src": "/api/(bootstrap|storage|login|upload)", "dest": "/api/$1.js" }
-  ],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/$1" }
-  ]
+  }
 }
